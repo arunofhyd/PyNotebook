@@ -1136,9 +1136,12 @@
 
                 const payload = JSON.stringify(cleanCells);
 
-                // Safety Check: Prevent massive writes (e.g. paste bombs)
-                if (payload.length > 500000) { // ~500KB limit
-                    console.warn("Save aborted: Notebook content too large.");
+                // Safety Check: Firestore has a 1MiB (1,048,576 bytes) limit per document.
+                // We limit to ~950KB to leave room for metadata and overhead.
+                // This allows ample space for code and text (e.g. a very large novel).
+                if (payload.length > 950000) {
+                    console.warn("Save aborted: Notebook content exceeds Firestore 1MB limit.");
+                    alert("Notebook is too large to save! Please split it into smaller sections.");
                     return;
                 }
 

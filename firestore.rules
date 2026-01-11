@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Check if the user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Check if the user matches the document ID
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // "users" collection rules
+    match /users/{userId} {
+      // Allow Create, Read, Update, Delete ONLY if the user is the owner
+      allow read, write: if isSignedIn() && isOwner(userId);
+    }
+
+    // Default denial
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
