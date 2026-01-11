@@ -268,7 +268,7 @@
             background: transparent !important;
         }
         
-        /* Dark mode overrides */
+        /* Dark mode overrides (Ensure vibrant colors for Monokai) */
         .dark .CodeMirror {
             color: #e5e7eb !important;
         }
@@ -276,6 +276,19 @@
             border-left: 1px solid white !important;
         }
         
+        /* Force vibrant colors in Dark Mode for properties/functions if Monokai misses them */
+        .cm-s-monokai .cm-property { color: #f92672 !important; } /* Vibrant Pink */
+        .cm-s-monokai .cm-variable-2 { color: #a6e22e !important; } /* Greenish for vars/funcs or use Pink if preferred */
+        /* Actually Monokai uses #a6e22e (Green) for function names usually, and #66d9ef (Blue) for library/builtins.
+           The user wants ".choice" (property) to be unique/colored.
+           In standard Monokai, properties might be plain white. Let's make them Pink (#f92672) or Blue (#66d9ef).
+           User liked the "unique color" in Light Mode (which I made Pink #e91e63).
+           So let's use Pink (#f92672) for properties in Dark Mode too.
+        */
+        .cm-s-monokai .cm-variable-2 { color: #66d9ef !important; } /* Blue for function calls usually looks good, or match property? */
+        /* Let's stick to the User's specific request: ".choice ... has a nice colour ... dark mode ... all black" */
+        /* So target .cm-property specifically. */
+
         /* Placeholder color */
         .CodeMirror-placeholder {
             color: #9ca3af !important;
@@ -1193,9 +1206,10 @@ class InputTransformer(ast.NodeTransformer):
 `);
                     
                     // Reset stdout & Clear Plots
+                    // Use close('all') to ensure no empty white figures remain from previous incomplete runs or implicit creation
                     pyodide.runPython(`
 sys.stdout = io.StringIO()
-plt.clf()
+plt.close('all')
 `);
                     
                     // Transform user code
