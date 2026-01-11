@@ -62,10 +62,18 @@
         };
     </script>
 
-    <!-- PrismJS for Syntax Highlighting -->
+    <!-- PrismJS for Syntax Highlighting (Still used for lightweight viewing if needed) -->
     <link href="https://unpkg.com/prismjs@1.29.0/themes/prism.css" rel="stylesheet" />
     <script src="https://unpkg.com/prismjs@1.29.0/components/prism-core.min.js"></script>
     <script src="https://unpkg.com/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+    <!-- CodeMirror 5 (Lightweight, Robust) -->
+    <link rel="stylesheet" href="https://unpkg.com/codemirror@5.65.16/lib/codemirror.css" />
+    <link rel="stylesheet" href="https://unpkg.com/codemirror@5.65.16/theme/monokai.css" />
+    <link rel="stylesheet" href="https://unpkg.com/codemirror@5.65.16/theme/eclipse.css" />
+    <script src="https://unpkg.com/codemirror@5.65.16/lib/codemirror.js"></script>
+    <script src="https://unpkg.com/codemirror@5.65.16/mode/python/python.js"></script>
+    <script src="https://unpkg.com/codemirror@5.65.16/addon/display/placeholder.js"></script>
 
     <script>
         tailwind.config = {
@@ -210,42 +218,34 @@
             color: #fbbf24;
         }
 
-        /* Editor container styles */
-        .code-editor-container {
-            position: relative;
-            min-height: 2.5rem; /* Ensure minimum height */
-            overflow: auto; /* Enable scrolling for long lines */
+        /* CodeMirror Custom Overrides */
+        .CodeMirror {
+            height: auto !important;
+            min-height: 50px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+            font-size: 0.875rem !important; /* text-sm */
+            line-height: 1.625 !important;
+            padding: 8px 0;
+            background: transparent !important;
         }
         
-        .code-editor-textarea {
-            position: relative; /* Make it relative so it pushes container height */
-            display: block;
-            width: 100%;
-            height: 100%;
-            min-width: 100%; /* Ensure it spans at least container */
-            resize: none;
-            color: transparent;
-            background: transparent;
-            caret-color: black; 
-            z-index: 1;
-            overflow: hidden;
-            outline: none;
-            white-space: pre; /* Force no-wrap to match Prism */
+        /* Light mode default adjustment */
+        .CodeMirror-gutters {
+            border-right: none !important;
+            background: transparent !important;
         }
         
-        .dark .code-editor-textarea {
-            caret-color: white;
+        /* Dark mode overrides */
+        .dark .CodeMirror {
+            color: #e5e7eb !important;
+        }
+        .dark .CodeMirror-cursor {
+            border-left: 1px solid white !important;
         }
         
-        .code-editor-highlight {
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            width: 100%;
-            pointer-events: none;
-            overflow: visible; /* Let content overflow so container scrolls */
-            z-index: 0;
+        /* Placeholder color */
+        .CodeMirror-placeholder {
+            color: #9ca3af !important;
         }
 
         /* --- Auth Screen Styles (Blue/Black Theme) --- */
@@ -376,7 +376,7 @@
                             
                             setStatus("Loading Numpy & Pandas (Heavy)...");
                             await py.loadPackage("micropip");
-                            await py.loadPackage(["numpy", "pandas"]);
+                            await py.loadPackage(["numpy", "pandas", "matplotlib"]);
                             
                             if (isMounted) {
                                 setPyodide(py);
@@ -399,7 +399,7 @@
                                 
                                 setStatus("Loading Numpy & Pandas...");
                                 await py.loadPackage("micropip");
-                                await py.loadPackage(["numpy", "pandas"]);
+                                await py.loadPackage(["numpy", "pandas", "matplotlib"]);
                                 
                                 if (isMounted) {
                                     setPyodide(py);
@@ -604,48 +604,125 @@
 
         // --- Components ---
 
-        const CodeEditor = ({ value, onChange, placeholder, className }) => {
-            const textareaRef = useRef(null);
-            const preRef = useRef(null);
+        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance }) => {
+            const editorRef = useRef(null);
+            const cmInstance = useRef(null);
+            const [hasError, setHasError] = useState(false);
             
-            // Auto-resize logic
+            // Theme detection for CodeMirror
+            const isDark = document.documentElement.classList.contains('dark');
+
             useEffect(() => {
-                if (textareaRef.current) {
-                    textareaRef.current.style.height = 'auto';
-                    textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+                if (!editorRef.current) return;
+
+                // Fallback if CodeMirror fails to load
+                if (!window.CodeMirror) {
+                    console.warn("CodeMirror not loaded, falling back to textarea.");
+                    setHasError(true);
+                    return;
+                }
+
+                // Initialize CodeMirror
+                const cm = window.CodeMirror(editorRef.current, {
+                    value: value || "",
+                    mode: "python",
+                    theme: isDark ? "monokai" : "eclipse", // 'default' or 'eclipse' for light
+                    lineNumbers: false,
+                    lineWrapping: true,
+                    placeholder: placeholder,
+                    viewportMargin: Infinity, // Auto-height
+                    extraKeys: {
+                        "Shift-Enter": () => {
+                            if (onRunAndAdvance) onRunAndAdvance();
+                        },
+                        "Ctrl-Enter": () => {
+                            if (onRun) onRun();
+                        },
+                        "Tab": (cm) => {
+                            cm.replaceSelection("    ", "end");
+                        }
+                    }
+                });
+
+                cm.on("change", (instance) => {
+                    const val = instance.getValue();
+                    if (val !== value) {
+                        onChange(val);
+                    }
+                });
+
+                cmInstance.current = cm;
+
+                // Cleanup
+                return () => {
+                    // CodeMirror 5 attaches to the DOM node, so clearing innerHTML or similar is usually enough
+                    // if React doesn't do it. But React will remove the ref's container.
+                };
+            }, []); // Init once.
+
+            // Sync value updates from outside (e.g. initial load or reset)
+            useEffect(() => {
+                if (cmInstance.current && cmInstance.current.getValue() !== value) {
+                    const cursor = cmInstance.current.getCursor();
+                    cmInstance.current.setValue(value);
+                    cmInstance.current.setCursor(cursor);
                 }
             }, [value]);
 
-            // Sync scroll (if we had scrolling, but we use auto-height)
-            
-            // Trigger highlight
+            // Sync theme changes
             useEffect(() => {
-                if (window.Prism) {
-                    window.Prism.highlightAll();
-                }
-            }, [value]);
+                 // Watch for class changes on html element or use a context.
+                 // Since we don't have a direct context for theme in this isolated component easily,
+                 // we can rely on a MutationObserver or just a simple prop if passed.
+                 // For now, let's just assume parent re-renders or we check periodically?
+                 // Better: Pass `isDark` as prop or use context.
+                 // Let's use a MutationObserver for robustness since theme is on <html>
 
-            const handleChange = (e) => {
-                onChange(e.target.value);
-            };
+                 const observer = new MutationObserver((mutations) => {
+                     mutations.forEach((mutation) => {
+                         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                             const isDarkNow = document.documentElement.classList.contains('dark');
+                             if (cmInstance.current) {
+                                 cmInstance.current.setOption("theme", isDarkNow ? "monokai" : "eclipse");
+                             }
+                         }
+                     });
+                 });
+
+                 observer.observe(document.documentElement, { attributes: true });
+
+                 // Initial set
+                 if (cmInstance.current) {
+                     const isDarkNow = document.documentElement.classList.contains('dark');
+                     cmInstance.current.setOption("theme", isDarkNow ? "monokai" : "eclipse");
+                 }
+
+                 return () => observer.disconnect();
+            }, []);
+
+            if (hasError) {
+                // Fallback Textarea
+                return (
+                    <textarea
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        placeholder={placeholder}
+                        className={`w-full h-auto min-h-[50px] font-mono text-sm p-2 bg-transparent border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 dark:text-gray-200 ${className}`}
+                        onKeyDown={(e) => {
+                             if (e.key === 'Enter' && e.shiftKey) {
+                                e.preventDefault();
+                                if (onRunAndAdvance) onRunAndAdvance();
+                            } else if (e.key === 'Enter' && e.ctrlKey) {
+                                e.preventDefault();
+                                if (onRun) onRun();
+                            }
+                        }}
+                    />
+                );
+            }
 
             return (
-                <div className={`code-editor-container font-mono text-sm leading-relaxed ${className}`}>
-                    <textarea
-                        ref={textareaRef}
-                        value={value}
-                        onChange={handleChange}
-                        placeholder={placeholder}
-                        className="code-editor-textarea font-mono text-sm leading-relaxed p-0 border-none focus:ring-0"
-                        spellCheck={false}
-                        autoCapitalize="off"
-                        autoComplete="off"
-                        autoCorrect="off"
-                    />
-                    <pre ref={preRef} className="code-editor-highlight language-python font-mono text-sm leading-relaxed p-0 margin-0 border-none" aria-hidden="true">
-                        <code className="language-python">{value + (value.endsWith('\n') ? ' ' : '')}</code>
-                    </pre>
-                </div>
+                <div ref={editorRef} className={`rounded-md overflow-hidden border border-gray-200 dark:border-gray-700 ${className}`}></div>
             );
         };
 
@@ -674,20 +751,36 @@
             );
         };
 
-        const OutputBlock = ({ output, isError }) => {
-            if (!output) return null;
+        const OutputBlock = ({ output, isError, images, html }) => {
+            if (!output && (!images || images.length === 0) && !html) return null;
             return (
-                <div className={`mt-2 p-3 font-mono text-sm whitespace-pre-wrap rounded-md border-l-4 ${
-                    isError 
-                    ? 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-500' 
-                    : 'bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-gray-400 dark:border-gray-600'
-                }`}>
-                    {output}
+                <div className="mt-2 space-y-2">
+                    {output && (
+                        <div className={`p-3 font-mono text-sm whitespace-pre-wrap rounded-md border-l-4 ${
+                            isError
+                            ? 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-500'
+                            : 'bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-gray-400 dark:border-gray-600'
+                        }`}>
+                            {output}
+                        </div>
+                    )}
+
+                    {images && images.map((imgSrc, i) => (
+                        <div key={i} className="overflow-auto bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
+                            <img src={`data:image/png;base64,${imgSrc}`} alt="Plot" className="max-w-full h-auto mx-auto" />
+                        </div>
+                    ))}
+
+                    {html && (
+                        <div className="overflow-x-auto bg-white dark:bg-gray-800 p-4 rounded border border-gray-200 dark:border-gray-700">
+                            <div dangerouslySetInnerHTML={{ __html: html }} className="prose dark:prose-invert max-w-none text-sm" />
+                        </div>
+                    )}
                 </div>
             );
         };
 
-        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput }) => {
+        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput }) => {
             const textareaRef = useRef(null);
             const [inputValue, setInputValue] = useState("");
 
@@ -755,6 +848,11 @@
                                     <CodeEditor
                                         value={cell.content}
                                         onChange={(newContent) => updateCell(cell.id, { content: newContent })}
+                                        onRun={() => runCell(cell.id)}
+                                        onRunAndAdvance={async () => {
+                                            await runCell(cell.id);
+                                            focusNextCell();
+                                        }}
                                         className="w-full text-gray-800 dark:text-gray-200"
                                         placeholder='print("Hello Python")'
                                     />
@@ -772,8 +870,13 @@
                                 
                                 {cell.type === 'code' && (
                                     <div className="mt-2">
-                                        {(cell.output || cell.error) && (
-                                            <OutputBlock output={cell.error || cell.output} isError={!!cell.error} />
+                                        {(cell.output || cell.error || (cell.images && cell.images.length) || cell.html) && (
+                                            <OutputBlock
+                                                output={cell.error || cell.output}
+                                                isError={!!cell.error}
+                                                images={cell.images}
+                                                html={cell.html}
+                                            />
                                         )}
                                         {isInputActive && (
                                             <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
@@ -953,10 +1056,24 @@
                     content: '',
                     output: '',
                     error: null,
-                    isRunning: false
+                    isRunning: false,
+                    images: [],
+                    html: null
                 };
                 setCells(prev => [...prev, newCell]);
                 setFocusedId(newCell.id);
+            };
+
+            const focusCell = (id) => {
+                setFocusedId(id);
+            };
+
+            const focusNextCell = (currentIndex) => {
+                if (currentIndex < cells.length - 1) {
+                    setFocusedId(cells[currentIndex + 1].id);
+                } else {
+                    addCell('code');
+                }
             };
 
             const updateCell = (id, updates) => {
@@ -979,27 +1096,26 @@
             };
 
             const runCell = async (id) => {
-                if (!pyodide) return;
+                if (!pyodide) return false; // Return false on failure
 
                 const cellToRun = cells.find(c => c.id === id);
-                if (!cellToRun || cellToRun.type === 'markdown') return;
+                if (!cellToRun || cellToRun.type === 'markdown') return true; // Markdown is "success"
 
-                updateCell(id, { isRunning: true, output: '', error: null });
+                updateCell(id, { isRunning: true, output: '', error: null, images: [], html: null });
 
                 try {
                     // Inject Input Transformer and Async Input Helper
-                    // We only need to define this once, but defining it safely every time ensures it's available.
                     pyodide.runPython(`
 import sys
 import io
 import ast
 import builtins
+import matplotlib.pyplot as plt
+import pandas as pd
 from js import window
 
 # Define async input helper that calls JS
 async def async_input(prompt=""):
-    # Call the global JS handler exposed on window
-    # We pass the current cell ID (we need to inject this)
     return await window.pyNotebookInputHandler("${id}", prompt)
 
 # AST Transformer to convert input() -> await async_input()
@@ -1015,10 +1131,6 @@ class InputTransformer(ast.NodeTransformer):
         return node
     
     def visit_AsyncFunctionDef(self, node):
-        # We are entering async function, so standard rules reset?
-        # Actually if we are inside a sync function, nesting async doesn't help us "escape" to top-level await easily
-        # But inside async def, we CAN use await. 
-        # So we mark as NOT in sync function (safe to await).
         outer_sync = self.in_sync_function
         self.in_sync_function = False
         self.generic_visit(node)
@@ -1040,34 +1152,15 @@ class InputTransformer(ast.NodeTransformer):
             return ast.copy_location(new_node, node)
         return self.generic_visit(node)
 
-def transform_and_compile(code):
-    try:
-        tree = ast.parse(code)
-        # Only transform top-level await if needed, but here we transform input calls
-        tree = InputTransformer().visit(tree)
-        ast.fix_missing_locations(tree)
-        return compile(tree, filename="<input>", mode="exec", flags=ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
-    except Exception as e:
-        return None
 `);
                     
-                    // Reset stdout
-                    pyodide.runPython("sys.stdout = io.StringIO()");
+                    // Reset stdout & Clear Plots
+                    pyodide.runPython(`
+sys.stdout = io.StringIO()
+plt.clf()
+`);
                     
                     // Transform user code
-                    // We need to do this in Python because passing code object to runPythonAsync is cleaner
-                    // Actually, runPythonAsync accepts string. 
-                    // So let's transform in Python, get string back (unparse), then run.
-                    
-                    // Use ast.unparse to get string back (available in Python 3.9+)
-                    // Note: ast.unparse might lose comments, but for execution it's fine.
-                    // If we want to preserve comments, we might need a better transformer, 
-                    // OR we just rely on compile() returning a code object and we use eval(code_obj).
-                    // But runPythonAsync expects string or code object?
-                    // Pyodide docs: "code: str" usually.
-                    // Let's check if we can pass code object to runPythonAsync.
-                    // If not, we use ast.unparse.
-                    
                     const transformedCode = pyodide.runPython(`
 import ast
 source = ${JSON.stringify(cellToRun.content)}
@@ -1081,28 +1174,61 @@ except Exception as e:
     print(f"Transformation skipped: {e}")
 result
 `);
-                    console.log("Transformed Code:", transformedCode);
                     
-                    if (!transformedCode) {
-                        throw new Error("Transformation returned undefined code.");
-                    }
+                    if (!transformedCode) throw new Error("Transformation returned undefined code.");
                     
+                    // Run Async
                     const result = await pyodide.runPythonAsync(transformedCode);
                     
-                    let stdout = pyodide.runPython("sys.stdout.getvalue()");
+                    // Capture Outputs (stdout, plots, dataframes)
+                    // We assign the result to a variable so we can inspect it safely
+                    if (result) pyodide.globals.set("last_result", result);
+                    else pyodide.globals.set("last_result", null);
 
-                    if (result !== undefined && result !== null) {
-                        if (stdout.length > 0) stdout += "\n";
-                        stdout += result.toString();
-                        
-                        if (result.destroy && typeof result.destroy === 'function') {
-                            result.destroy();
-                        }
+                    const analysis = pyodide.runPython(`
+import base64
+res_type = "text"
+html_out = None
+images = []
+
+# Check result type for DataFrame
+if last_result is not None and isinstance(last_result, pd.DataFrame):
+    res_type = "dataframe"
+    html_out = last_result.to_html(classes='min-w-full text-sm text-left border-collapse')
+
+# Check plots
+if plt.get_fignums():
+    for i in plt.get_fignums():
+        plt.figure(i)
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        images.append(base64.b64encode(buf.read()).decode('utf-8'))
+    plt.close('all')
+
+stdout_val = sys.stdout.getvalue()
+{"stdout": stdout_val, "html": html_out, "images": images}
+`);
+                    const outputData = analysis.toJs();
+                    const outputMap = Object.fromEntries(outputData);
+
+                    // Clean up proxy if needed
+                    if (result && result.destroy && typeof result.destroy === 'function') {
+                         result.destroy();
                     }
                     
-                    updateCell(id, { isRunning: false, output: stdout });
+                    updateCell(id, {
+                        isRunning: false,
+                        output: outputMap.stdout,
+                        images: outputMap.images,
+                        html: outputMap.html
+                    });
+
+                    return true; // Success
+
                 } catch (err) {
                     updateCell(id, { isRunning: false, error: err.toString() });
+                    return false; // Failure
                 }
             };
 
@@ -1111,7 +1237,8 @@ result
                 for (const cell of cells) {
                     if (cell.type === 'code') {
                         // We must await here to ensure sequential execution (Python state is single-threaded)
-                        await runCell(cell.id);
+                        const success = await runCell(cell.id);
+                        if (!success) break; // Stop on error
                     }
                 }
             };
@@ -1316,6 +1443,7 @@ result
                                 removeCell={removeCell}
                                 moveCell={moveCell}
                                 runCell={runCell}
+                                focusNextCell={() => focusNextCell(index)}
                                 isFocused={focusedId === cell.id}
                                 setFocusedId={setFocusedId}
                                 isRuntimeReady={!isLoading && !loadError}
