@@ -160,25 +160,26 @@
         .token.regex, .token.important, .token.variable { color: #e36209; }
 
         /* Custom Colorful Light Theme for CodeMirror (overrides eclipse) */
-        .cm-s-eclipse .cm-keyword { color: #d73a49; font-weight: bold; }
-        .cm-s-eclipse .cm-atom { color: #6f42c1; }
-        .cm-s-eclipse .cm-number { color: #005cc5; }
-        .cm-s-eclipse .cm-def { color: #6f42c1; }
-        .cm-s-eclipse .cm-variable { color: #24292e; }
-        .cm-s-eclipse .cm-variable-2 { color: #005cc5; }
+        /* Aiming for Monokai-ish vibes on Light Background: Pink Functions, Blue Keywords, Green Strings */
+        .cm-s-eclipse .cm-keyword { color: #0077aa; font-weight: bold; } /* Vibrant Blue */
+        .cm-s-eclipse .cm-atom { color: #ae81ff; } /* Purple */
+        .cm-s-eclipse .cm-number { color: #aa5d00; } /* Orange-ish */
+        .cm-s-eclipse .cm-def { color: #e91e63; font-weight: bold; } /* Pink/Magenta (Functions) */
+        .cm-s-eclipse .cm-variable { color: #333333; }
+        .cm-s-eclipse .cm-variable-2 { color: #e91e63; } /* Pink (Function calls) */
         .cm-s-eclipse .cm-variable-3 { color: #22863a; }
-        .cm-s-eclipse .cm-property { color: #005cc5; }
+        .cm-s-eclipse .cm-property { color: #e91e63; } /* Pink (Properties like .choice) */
         .cm-s-eclipse .cm-operator { color: #d73a49; }
-        .cm-s-eclipse .cm-comment { color: #6a737d; font-style: italic; }
-        .cm-s-eclipse .cm-string { color: #032f62; }
+        .cm-s-eclipse .cm-comment { color: #75715e; font-style: italic; }
+        .cm-s-eclipse .cm-string { color: #22863a; } /* Green */
         .cm-s-eclipse .cm-string-2 { color: #22863a; }
-        .cm-s-eclipse .cm-meta { color: #032f62; }
-        .cm-s-eclipse .cm-builtin { color: #6f42c1; }
-        .cm-s-eclipse .cm-tag { color: #22863a; }
-        .cm-s-eclipse .cm-attribute { color: #6f42c1; }
-        .cm-s-eclipse .cm-header { color: #005cc5; }
-        .cm-s-eclipse .cm-hr { color: #eaecef; }
-        .cm-s-eclipse .cm-link { color: #032f62; }
+        .cm-s-eclipse .cm-meta { color: #0077aa; }
+        .cm-s-eclipse .cm-builtin { color: #e91e63; }
+        .cm-s-eclipse .cm-tag { color: #e91e63; }
+        .cm-s-eclipse .cm-attribute { color: #e91e63; }
+        .cm-s-eclipse .cm-header { color: #0077aa; }
+        .cm-s-eclipse .cm-hr { color: #999; }
+        .cm-s-eclipse .cm-link { color: #0077aa; }
 
         /* Dark mode overrides for Prism */
         .dark code[class*="language-"],
@@ -1228,10 +1229,16 @@ res_type = "text"
 html_out = None
 images = []
 
-# Check result type for DataFrame
-if last_result is not None and isinstance(last_result, pd.DataFrame):
-    res_type = "dataframe"
-    html_out = last_result.to_html(classes='min-w-full text-sm text-left border-collapse')
+# Check result type for DataFrame or regular value
+if last_result is not None:
+    if isinstance(last_result, pd.DataFrame):
+        res_type = "dataframe"
+        html_out = last_result.to_html(classes='min-w-full text-sm text-left border-collapse')
+    else:
+        # Append other results to stdout (mimicking REPL behavior)
+        if sys.stdout.getvalue() and not sys.stdout.getvalue().endswith('\\n'):
+            sys.stdout.write('\\n')
+        sys.stdout.write(str(last_result))
 
 # Check plots
 if plt.get_fignums():
