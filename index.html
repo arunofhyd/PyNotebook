@@ -386,7 +386,9 @@
             Moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
             Download: <g><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></g>,
             Menu: <g><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></g>,
-            LogOut: <g><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></g>
+            LogOut: <g><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></g>,
+            Copy: <g><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></g>,
+            Check: <polyline points="20 6 9 17 4 12" />
         };
 
         const SimpleIcon = ({ name, className }) => {
@@ -797,29 +799,84 @@
             );
         };
 
+        const CopyButton = ({ onClick, className = "" }) => {
+            const [copied, setCopied] = useState(false);
+
+            const handleClick = async (e) => {
+                e.stopPropagation();
+                await onClick();
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            };
+
+            return (
+                <button
+                    onClick={handleClick}
+                    className={`absolute top-2 right-2 p-1.5 bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-700 rounded-md text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-all shadow-sm border border-gray-200 dark:border-gray-700 opacity-0 group-hover:opacity-100 focus:opacity-100 ${className}`}
+                    title="Copy to clipboard"
+                >
+                    {copied ? <SimpleIcon name="Check" className="h-4 w-4 text-green-500" /> : <SimpleIcon name="Copy" className="h-4 w-4" />}
+                </button>
+            );
+        };
+
+        const copyToClipboard = async (type, content) => {
+            try {
+                if (type === 'text') {
+                    await navigator.clipboard.writeText(content);
+                } else if (type === 'image') {
+                    const response = await fetch(`data:image/png;base64,${content}`);
+                    const blob = await response.blob();
+                    await navigator.clipboard.write([
+                        new ClipboardItem({ [blob.type]: blob })
+                    ]);
+                } else if (type === 'html') {
+                     // Create plain text version (simple strip tags) for the plain text payload
+                     const tmp = document.createElement("DIV");
+                     tmp.innerHTML = content;
+                     const plainText = tmp.innerText || tmp.textContent || "";
+
+                     const blobText = new Blob([plainText], { type: 'text/plain' });
+                     const blobHtml = new Blob([content], { type: 'text/html' });
+
+                     await navigator.clipboard.write([
+                         new ClipboardItem({
+                             "text/plain": blobText,
+                             "text/html": blobHtml
+                         })
+                     ]);
+                }
+            } catch (err) {
+                console.error('Failed to copy:', err);
+            }
+        };
+
         const OutputBlock = ({ output, isError, images, html }) => {
             if (!output && (!images || images.length === 0) && !html) return null;
             return (
                 <div className="mt-2 space-y-2">
                     {output && (
-                        <div className={`p-3 font-mono text-sm whitespace-pre-wrap rounded-md border-l-4 ${
+                        <div className={`relative group p-3 font-mono text-sm whitespace-pre-wrap rounded-md border-l-4 ${
                             isError
                             ? 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-500'
                             : 'bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-gray-400 dark:border-gray-600'
                         }`}>
                             {output}
+                            {!isError && <CopyButton onClick={() => copyToClipboard('text', output)} />}
                         </div>
                     )}
 
                     {images && images.map((imgSrc, i) => (
-                        <div key={i} className="overflow-auto bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700">
+                        <div key={i} className="relative group overflow-auto bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700 text-center">
                             <img src={`data:image/png;base64,${imgSrc}`} alt="Plot" className="max-w-full h-auto mx-auto" />
+                            <CopyButton onClick={() => copyToClipboard('image', imgSrc)} />
                         </div>
                     ))}
 
                     {html && (
-                        <div className="overflow-x-auto bg-white dark:bg-gray-800 p-4 rounded border border-gray-200 dark:border-gray-700">
+                        <div className="relative group overflow-x-auto bg-white dark:bg-gray-800 p-4 rounded border border-gray-200 dark:border-gray-700">
                             <div dangerouslySetInnerHTML={{ __html: html }} className="prose dark:prose-invert max-w-none text-sm" />
+                            <CopyButton onClick={() => copyToClipboard('html', html)} />
                         </div>
                     )}
                 </div>
@@ -1035,6 +1092,38 @@
             ]);
 
             // --- Persistence Logic ---
+            const [isSaving, setIsSaving] = useState(false);
+            const cellsRef = useRef(cells);
+            const userRef = useRef(user);
+            const isGuestRef = useRef(isGuest);
+
+            // Keep refs synced
+            useEffect(() => { cellsRef.current = cells; }, [cells]);
+            useEffect(() => { userRef.current = user; }, [user]);
+            useEffect(() => { isGuestRef.current = isGuest; }, [isGuest]);
+
+            const performSave = async () => {
+                const currentCells = cellsRef.current;
+                const currentUser = userRef.current;
+                const currentIsGuest = isGuestRef.current;
+
+                if (!currentUser && !currentIsGuest) return;
+
+                setIsSaving(true);
+                try {
+                    if (currentUser) {
+                         const { db, doc, setDoc } = window.firebaseServices;
+                         await setDoc(doc(db, 'users', currentUser.uid), { cells: currentCells, lastUpdated: new Date() });
+                    } else if (currentIsGuest) {
+                         localStorage.setItem('pynotebook-content', JSON.stringify(currentCells));
+                    }
+                } catch (e) {
+                    console.error("Failed to save:", e);
+                } finally {
+                    setTimeout(() => setIsSaving(false), 800);
+                }
+            };
+
             useEffect(() => {
                 const loadData = async () => {
                     if (user) {
@@ -1073,27 +1162,28 @@
 
             useEffect(() => {
                 if (isAuthChecking) return;
+                const timeoutId = setTimeout(performSave, 2000);
+                return () => clearTimeout(timeoutId);
+            }, [cells, isAuthChecking]);
 
-                const saveData = async () => {
-                    if (user) {
-                        // Save to Firebase (Debounced ideally, but here direct)
-                        // In a real app, use a debounce hook or similar to avoid spamming writes
-                        // For this demo, we'll write on change but maybe check if valid
-                        try {
-                            const { db, doc, setDoc } = window.firebaseServices;
-                            await setDoc(doc(db, 'users', user.uid), { cells, lastUpdated: new Date() });
-                        } catch (e) {
-                            console.error("Failed to save to Firebase:", e);
-                        }
-                    } else if (isGuest) {
-                        localStorage.setItem('pynotebook-content', JSON.stringify(cells));
-                    }
+            // Mobile/Lifecycle Save
+            useEffect(() => {
+                const handleLifecycleSave = () => {
+                     performSave();
                 };
 
-                // Simple timeout debounce to prevent heavy writes
-                const timeoutId = setTimeout(saveData, 1000);
-                return () => clearTimeout(timeoutId);
-            }, [cells, user, isGuest, isAuthChecking]);
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'hidden') {
+                        handleLifecycleSave();
+                    }
+                });
+                window.addEventListener('pagehide', handleLifecycleSave);
+
+                return () => {
+                    document.removeEventListener('visibilitychange', handleLifecycleSave);
+                    window.removeEventListener('pagehide', handleLifecycleSave);
+                };
+            }, []);
 
             const addCell = (type) => {
                 const newCell = {
@@ -1403,8 +1493,17 @@ stdout_val = sys.stdout.getvalue()
                                      </span>
                                    ) : (
                                      <span className="flex items-center text-green-600 dark:text-green-500 font-medium">
-                                       <SimpleIcon name="CheckCircle2" className="h-3 w-3 mr-1" />
-                                       Ready
+                                       {isSaving ? (
+                                           <>
+                                               <SimpleIcon name="Loader2" className="h-3 w-3 mr-1 spinner" />
+                                               Saving...
+                                           </>
+                                       ) : (
+                                           <>
+                                               <SimpleIcon name="CheckCircle2" className="h-3 w-3 mr-1" />
+                                               Ready
+                                           </>
+                                       )}
                                      </span>
                                    )}
                                 </div>
