@@ -260,6 +260,20 @@
         .main-gradient-box {
             background: linear-gradient(to right, #2563eb, #1d4ed8);
         }
+        .auth-form-container {
+            min-height: 100vh;
+            min-height: 100dvh; /* Mobile viewport fix */
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            /* Subtle background pattern for auth screen */
+            background-image: radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 50%);
+        }
+        .dark .auth-form-container {
+            background-image: radial-gradient(circle at 50% 50%, rgba(29, 78, 216, 0.1) 0%, transparent 60%);
+        }
     </style>
 </head>
 <body class="bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200">
@@ -488,7 +502,7 @@
             return (
                 <div className="auth-form-container screen-transition">
                     <div className="w-full max-w-md">
-                        <div className="bg-white p-8 rounded-2xl shadow-xl">
+                        <div className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 transition-colors duration-200">
                             <div className="text-center mb-8">
                                 <div className="flex justify-center items-baseline gap-2">
                                     <img src="/assets/logo.png" alt="Logo" className="w-12 h-12 relative top-1" onError={(e) => e.target.style.display='none'} />
@@ -496,7 +510,7 @@
                                         <h1 className="text-5xl font-bold main-gradient-text pb-2">PyNotebook</h1>
                                     </div>
                                 </div>
-                                <p className="text-gray-600">Python in your browser.</p>
+                                <p className="text-gray-600 dark:text-gray-400">Python in your browser.</p>
                             </div>
                             
                             <div className="space-y-4">
@@ -506,7 +520,7 @@
                                     placeholder="Email" 
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100"
+                                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                                 />
                                 <div className="relative">
                                     <input 
@@ -515,13 +529,13 @@
                                         placeholder="Password" 
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100"
+                                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                                     />
                                     <button 
                                         id="password-toggle" 
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 dark:text-gray-400"
+                                        className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                                     >
                                         <i className={`fas ${showPassword ? 'fa-eye' : 'fa-eye-slash'}`}></i>
                                     </button>
@@ -531,7 +545,7 @@
                                 </div>
                             </div>
 
-                            <div className={`text-sm mt-4 text-center h-4 ${error && !error.includes('sent') ? 'text-red-600' : 'text-green-600'}`}>
+                            <div className={`text-sm mt-4 text-center h-4 ${error && !error.includes('sent') ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                                 {error}
                             </div>
 
@@ -546,22 +560,22 @@
                                 <button 
                                     onClick={handleSignup}
                                     disabled={loading}
-                                    className="w-full py-3 text-gray-700 bg-gray-200 font-semibold rounded-lg hover:bg-gray-300 transition flex justify-center items-center h-12 disabled:opacity-50"
+                                    className="w-full py-3 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 font-semibold rounded-lg transition flex justify-center items-center h-12 disabled:opacity-50"
                                 >
                                     {loading ? <i className="fas fa-spinner fa-spin"></i> : "Sign Up"}
                                 </button>
                             </div>
                             
                             <div className="flex items-center my-6">
-                                <hr className="flex-grow border-t border-gray-300" />
-                                <span className="px-3 text-gray-500 text-sm">OR</span>
-                                <hr className="flex-grow border-t border-gray-300" />
+                                <hr className="flex-grow border-t border-gray-300 dark:border-gray-700" />
+                                <span className="px-3 text-gray-500 dark:text-gray-400 text-sm">OR</span>
+                                <hr className="flex-grow border-t border-gray-300 dark:border-gray-700" />
                             </div>
 
                             <button 
                                 onClick={handleGoogle}
                                 disabled={loading}
-                                className="w-full flex items-center justify-center gap-3 py-3 border border-gray-300 rounded-lg hover:bg-gray-100 transition h-12"
+                                className="w-full flex items-center justify-center gap-3 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg transition h-12"
                             >
                                 <img src="/assets/google.webp" alt="Google Icon" className="w-5 h-5" />
                                 <span>Continue with Google</span>
@@ -569,10 +583,10 @@
 
                             <button 
                                 onClick={onGuest}
-                                className="w-full text-center mt-3 py-3 text-gray-700 bg-gray-100 font-semibold rounded-lg hover:bg-gray-200 transition"
+                                className="w-full text-center mt-3 py-3 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700/50 hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold rounded-lg transition"
                             >
                                 Continue as Guest
-                                <span className="block text-xs font-normal text-gray-600">(Saves data only on this device)</span>
+                                <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">(Saves data only on this device)</span>
                             </button>
                         </div>
 
@@ -868,7 +882,6 @@
             const [cells, setCells] = useState([
                 { id: '1', type: 'markdown', content: '# Welcome to PyNotebook\n\nThis runs Python entirely in your browser using Pyodide. No server required!\n\nLibraries pre-loaded: `numpy`, `pandas`.', output: '', error: null, isRunning: false },
                 { id: '2', type: 'code', content: 'import numpy as np\n\nprint("Hello from Python!")\nprint(f"Numpy version: {np.__version__}")\n\n# Variables persist between cells\nx = 42', output: '', error: null, isRunning: false },
-                { id: '3', type: 'code', content: 'print(f"The value of x from the previous cell is: {x}")\nprint(f"x squared is: {x**2}")', output: '', error: null, isRunning: false },
             ]);
 
             // --- Persistence Logic ---
