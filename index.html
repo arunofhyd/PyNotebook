@@ -161,25 +161,25 @@
 
         /* Custom Colorful Light Theme for CodeMirror (overrides eclipse) */
         /* Aiming for Monokai-ish vibes on Light Background: Pink Functions, Blue Keywords, Green Strings */
-        .cm-s-eclipse .cm-keyword { color: #0077aa; font-weight: bold; } /* Vibrant Blue */
-        .cm-s-eclipse .cm-atom { color: #ae81ff; } /* Purple */
-        .cm-s-eclipse .cm-number { color: #aa5d00; } /* Orange-ish */
-        .cm-s-eclipse .cm-def { color: #e91e63; font-weight: bold; } /* Pink/Magenta (Functions) */
+        .cm-s-eclipse .cm-keyword { color: #0077aa !important; font-weight: bold; } /* Vibrant Blue */
+        .cm-s-eclipse .cm-atom { color: #ae81ff !important; } /* Purple */
+        .cm-s-eclipse .cm-number { color: #aa5d00 !important; } /* Orange-ish */
+        .cm-s-eclipse .cm-def { color: #e91e63 !important; font-weight: bold; } /* Pink/Magenta (Functions) */
         .cm-s-eclipse .cm-variable { color: #333333; }
-        .cm-s-eclipse .cm-variable-2 { color: #e91e63; } /* Pink (Function calls) */
-        .cm-s-eclipse .cm-variable-3 { color: #22863a; }
-        .cm-s-eclipse .cm-property { color: #e91e63; } /* Pink (Properties like .choice) */
-        .cm-s-eclipse .cm-operator { color: #d73a49; }
-        .cm-s-eclipse .cm-comment { color: #75715e; font-style: italic; }
-        .cm-s-eclipse .cm-string { color: #22863a; } /* Green */
-        .cm-s-eclipse .cm-string-2 { color: #22863a; }
-        .cm-s-eclipse .cm-meta { color: #0077aa; }
-        .cm-s-eclipse .cm-builtin { color: #e91e63; }
-        .cm-s-eclipse .cm-tag { color: #e91e63; }
-        .cm-s-eclipse .cm-attribute { color: #e91e63; }
-        .cm-s-eclipse .cm-header { color: #0077aa; }
-        .cm-s-eclipse .cm-hr { color: #999; }
-        .cm-s-eclipse .cm-link { color: #0077aa; }
+        .cm-s-eclipse .cm-variable-2 { color: #e91e63 !important; } /* Pink (Function calls) */
+        .cm-s-eclipse .cm-variable-3 { color: #22863a !important; }
+        .cm-s-eclipse .cm-property { color: #e91e63 !important; } /* Pink (Properties like .choice) */
+        .cm-s-eclipse .cm-operator { color: #d73a49 !important; }
+        .cm-s-eclipse .cm-comment { color: #75715e !important; font-style: italic; }
+        .cm-s-eclipse .cm-string { color: #22863a !important; } /* Green */
+        .cm-s-eclipse .cm-string-2 { color: #22863a !important; }
+        .cm-s-eclipse .cm-meta { color: #0077aa !important; }
+        .cm-s-eclipse .cm-builtin { color: #e91e63 !important; }
+        .cm-s-eclipse .cm-tag { color: #e91e63 !important; }
+        .cm-s-eclipse .cm-attribute { color: #e91e63 !important; }
+        .cm-s-eclipse .cm-header { color: #0077aa !important; }
+        .cm-s-eclipse .cm-hr { color: #999 !important; }
+        .cm-s-eclipse .cm-link { color: #0077aa !important; }
 
         /* Dark mode overrides for Prism */
         .dark code[class*="language-"],
@@ -1234,8 +1234,12 @@ result
                     
                     // Capture Outputs (stdout, plots, dataframes)
                     // We assign the result to a variable so we can inspect it safely
-                    if (result) pyodide.globals.set("last_result", result);
-                    else pyodide.globals.set("last_result", null);
+                    // Fix: Check for undefined/null explicitly to allow 0 or False to be printed
+                    if (result !== undefined && result !== null) {
+                        pyodide.globals.set("last_result", result);
+                    } else {
+                        pyodide.globals.set("last_result", null);
+                    }
 
                     const analysis = pyodide.runPython(`
 import base64
@@ -1250,8 +1254,13 @@ if last_result is not None:
         html_out = last_result.to_html(classes='min-w-full text-sm text-left border-collapse')
     else:
         # Append other results to stdout (mimicking REPL behavior)
-        if sys.stdout.getvalue() and not sys.stdout.getvalue().endswith('\\n'):
+        current_stdout = sys.stdout.getvalue()
+        if current_stdout and not current_stdout.endswith('\\n'):
             sys.stdout.write('\\n')
+
+        # Only print if it's not None (explicit None return)
+        # Note: In JS we checked !== undefined/null, but pyodide might map those.
+        # But here last_result is a Python object.
         sys.stdout.write(str(last_result))
 
 # Check plots
