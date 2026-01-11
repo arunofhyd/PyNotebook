@@ -1354,12 +1354,6 @@ stdout_val = sys.stdout.getvalue()
                                 title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                             />
                             <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
-                            <Button variant="secondary" size="sm" icon="Save" onClick={saveNotebook}>
-                                Save
-                            </Button>
-                            <Button variant="secondary" size="sm" icon="RotateCw" onClick={clearAllOutputs}>
-                                Clear
-                            </Button>
                             <Button variant="secondary" size="sm" icon="Download" onClick={exportNotebook}>
                                 Export .py
                             </Button>
@@ -1398,12 +1392,6 @@ stdout_val = sys.stdout.getvalue()
                     {isMenuOpen && (
                         <div className="fixed top-16 left-0 right-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-40 p-4 shadow-lg lg:hidden">
                             <div className="grid grid-cols-2 gap-3 mb-4">
-                                <Button variant="secondary" size="md" icon="Save" onClick={() => { saveNotebook(); setIsMenuOpen(false); }}>
-                                    Save
-                                </Button>
-                                <Button variant="secondary" size="md" icon="RotateCw" onClick={() => { clearAllOutputs(); setIsMenuOpen(false); }}>
-                                    Clear
-                                </Button>
                                 <Button variant="secondary" size="md" icon="Download" onClick={() => { exportNotebook(); setIsMenuOpen(false); }}>
                                     Export .py
                                 </Button>
