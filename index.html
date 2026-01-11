@@ -75,6 +75,9 @@
     <script src="https://unpkg.com/codemirror@5.65.16/mode/python/python.js"></script>
     <script src="https://unpkg.com/codemirror@5.65.16/addon/display/placeholder.js"></script>
 
+    <!-- LZ-String for Compression -->
+    <script src="https://unpkg.com/lz-string@1.5.0/libs/lz-string.min.js"></script>
+
     <script>
         tailwind.config = {
             darkMode: 'class', // Enable class-based dark mode
@@ -652,7 +655,7 @@
 
         // --- Components ---
 
-        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance }) => {
+        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onBlur }) => {
             const editorRef = useRef(null);
             const cmInstance = useRef(null);
             const [hasError, setHasError] = useState(false);
@@ -698,6 +701,12 @@
                         onChange(val);
                     }
                 });
+
+                if (onBlur) {
+                    cm.on("blur", () => {
+                        onBlur();
+                    });
+                }
 
                 cmInstance.current = cm;
 
@@ -754,6 +763,7 @@
                     <textarea
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
+                        onBlur={onBlur}
                         placeholder={placeholder}
                         className={`w-full h-auto min-h-[50px] font-mono text-sm p-2 bg-transparent border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 dark:text-gray-200 ${className}`}
                         onKeyDown={(e) => {
@@ -900,7 +910,7 @@
             );
         };
 
-        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput }) => {
+        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave }) => {
             const textareaRef = useRef(null);
             const [inputValue, setInputValue] = useState("");
 
@@ -973,6 +983,7 @@
                                             await runCell(cell.id);
                                             focusNextCell();
                                         }}
+                                        onBlur={triggerSave}
                                         className="w-full text-gray-800 dark:text-gray-200"
                                         placeholder='print("Hello Python")'
                                     />
@@ -981,6 +992,7 @@
                                         ref={textareaRef}
                                         value={cell.content}
                                         onChange={(e) => updateCell(cell.id, { content: e.target.value })}
+                                        onBlur={triggerSave}
                                         placeholder='# Write markdown notes here...'
                                         className="w-full bg-transparent resize-none focus:outline-none font-sans text-sm leading-relaxed text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600"
                                         spellCheck={false}
@@ -1134,14 +1146,18 @@
                     content: c.content
                 }));
 
-                const payload = JSON.stringify(cleanCells);
+                // Compress data to maximize storage limit.
+                // LZ-String uses LZ-based compression (lossless), similar to ZIP.
+                // This is 100% safe for code/text and significantly reduces storage costs.
+                // It ensures we fit much more data into the 1MB Firestore limit.
+                const jsonPayload = JSON.stringify(cleanCells);
+                const compressed = window.LZString ? window.LZString.compressToBase64(jsonPayload) : jsonPayload;
 
-                // Safety Check: Firestore has a 1MiB (1,048,576 bytes) limit per document.
-                // We limit to ~950KB to leave room for metadata and overhead.
-                // This allows ample space for code and text (e.g. a very large novel).
-                if (payload.length > 950000) {
-                    console.warn("Save aborted: Notebook content exceeds Firestore 1MB limit.");
-                    alert("Notebook is too large to save! Please split it into smaller sections.");
+                // Firestore Check: 1MB Limit
+                // Base64 is efficient. 950KB compressed is roughly 3-5MB of raw code.
+                if (compressed.length > 950000) {
+                    console.warn("Save aborted: Compressed notebook exceeds 1MB.");
+                    alert("Notebook is too large even after compression! Please split it.");
                     return;
                 }
 
@@ -1149,10 +1165,9 @@
                 try {
                     if (currentUser) {
                          const { db, doc, setDoc } = window.firebaseServices;
-                         // Store 'cleanCells' instead of 'currentCells'
-                         await setDoc(doc(db, 'users', currentUser.uid), { cells: cleanCells, lastUpdated: new Date() });
+                         await setDoc(doc(db, 'users', currentUser.uid), { cells: compressed, lastUpdated: new Date() });
                     } else if (currentIsGuest) {
-                         localStorage.setItem('pynotebook-content', payload);
+                         localStorage.setItem('pynotebook-content', compressed);
                     }
                 } catch (e) {
                     console.error("Failed to save:", e);
@@ -1163,31 +1178,42 @@
 
             useEffect(() => {
                 const loadData = async () => {
+                    const parseCells = (raw) => {
+                        try {
+                            // Try decompressing if string
+                            if (typeof raw === 'string') {
+                                // Check if it's JSON or Compressed Base64
+                                // If it starts with [ or {, it might be JSON.
+                                try {
+                                    const decompressed = window.LZString.decompressFromBase64(raw);
+                                    if (decompressed) return JSON.parse(decompressed);
+                                } catch (e) { /* ignore */ }
+                                // Fallback: try parsing directly (backward compat)
+                                return JSON.parse(raw);
+                            }
+                            return raw; // Already object/array
+                        } catch (e) {
+                            console.error("Failed to parse/decompress:", e);
+                            return null;
+                        }
+                    };
+
                     if (user) {
-                        // Load from Firebase
                         try {
                             const { db, doc, getDoc } = window.firebaseServices;
                             const docRef = doc(db, 'users', user.uid);
                             const docSnap = await getDoc(docRef);
                             if (docSnap.exists()) {
                                 const data = docSnap.data();
-                                if (data.cells && Array.isArray(data.cells)) {
-                                    setCells(data.cells);
-                                }
+                                const cellsData = parseCells(data.cells);
+                                if (cellsData && Array.isArray(cellsData)) setCells(cellsData);
                             }
-                        } catch (e) {
-                            console.error("Failed to load from Firebase:", e);
-                        }
+                        } catch (e) { console.error("Failed to load:", e); }
                     } else if (isGuest) {
-                        // Load from LocalStorage
                         const saved = localStorage.getItem('pynotebook-content');
                         if (saved) {
-                            try {
-                                const parsed = JSON.parse(saved);
-                                if (Array.isArray(parsed)) setCells(parsed);
-                            } catch (e) {
-                                console.error("Failed to load saved notebook", e);
-                            }
+                            const cellsData = parseCells(saved);
+                            if (cellsData && Array.isArray(cellsData)) setCells(cellsData);
                         }
                     }
                 };
@@ -1197,10 +1223,19 @@
                 }
             }, [user, isGuest, isAuthChecking]);
 
+            const prevCellsLength = useRef(cells.length);
             useEffect(() => {
                 if (isAuthChecking) return;
-                const timeoutId = setTimeout(performSave, 2000);
-                return () => clearTimeout(timeoutId);
+
+                // Immediate save on structural changes (Add/Delete/Move)
+                if (cells.length !== prevCellsLength.current) {
+                    prevCellsLength.current = cells.length;
+                    performSave();
+                } else {
+                    // Debounce save on content changes (Typing)
+                    const timeoutId = setTimeout(performSave, 2000);
+                    return () => clearTimeout(timeoutId);
+                }
             }, [cells, isAuthChecking]);
 
             // Mobile/Lifecycle Save
@@ -1640,6 +1675,7 @@ stdout_val = sys.stdout.getvalue()
                                 isRuntimeReady={!isLoading && !loadError}
                                 inputRequest={inputRequest}
                                 submitInput={submitInput}
+                        triggerSave={() => performSave()}
                             />
                         ))}
 
