@@ -869,7 +869,7 @@
                     {images && images.map((imgSrc, i) => (
                         <div key={i} className="relative group overflow-auto bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700 text-center">
                             <img src={`data:image/png;base64,${imgSrc}`} alt="Plot" className="max-w-full h-auto mx-auto" />
-                            <CopyButton onClick={() => copyToClipboard('image', imgSrc)} />
+                            <CopyButton onClick={() => copyToClipboard('image', imgSrc)} className="left-2 right-auto" />
                         </div>
                     ))}
 
