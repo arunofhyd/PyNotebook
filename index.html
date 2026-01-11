@@ -1191,6 +1191,12 @@
                 const jsonPayload = JSON.stringify(cleanCells);
                 const compressed = window.LZString ? window.LZString.compressToBase64(jsonPayload) : jsonPayload;
 
+                // Log Compression Stats for visibility
+                const originalSize = jsonPayload.length;
+                const compressedSize = compressed.length;
+                const ratio = originalSize > 0 ? ((1 - (compressedSize / originalSize)) * 100).toFixed(1) : 0;
+                console.log(`Auto-Save: Compressed ${originalSize} chars to ${compressedSize} chars (${ratio}% saved).`);
+
                 // Firestore Check: 1MB Limit
                 // Base64 is efficient. 950KB compressed is roughly 3-5MB of raw code.
                 if (compressed.length > 950000) {
