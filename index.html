@@ -1035,6 +1035,38 @@
             ]);
 
             // --- Persistence Logic ---
+            const [isSaving, setIsSaving] = useState(false);
+            const cellsRef = useRef(cells);
+            const userRef = useRef(user);
+            const isGuestRef = useRef(isGuest);
+
+            // Keep refs synced
+            useEffect(() => { cellsRef.current = cells; }, [cells]);
+            useEffect(() => { userRef.current = user; }, [user]);
+            useEffect(() => { isGuestRef.current = isGuest; }, [isGuest]);
+
+            const performSave = async () => {
+                const currentCells = cellsRef.current;
+                const currentUser = userRef.current;
+                const currentIsGuest = isGuestRef.current;
+
+                if (!currentUser && !currentIsGuest) return;
+
+                setIsSaving(true);
+                try {
+                    if (currentUser) {
+                         const { db, doc, setDoc } = window.firebaseServices;
+                         await setDoc(doc(db, 'users', currentUser.uid), { cells: currentCells, lastUpdated: new Date() });
+                    } else if (currentIsGuest) {
+                         localStorage.setItem('pynotebook-content', JSON.stringify(currentCells));
+                    }
+                } catch (e) {
+                    console.error("Failed to save:", e);
+                } finally {
+                    setTimeout(() => setIsSaving(false), 800);
+                }
+            };
+
             useEffect(() => {
                 const loadData = async () => {
                     if (user) {
@@ -1073,27 +1105,28 @@
 
             useEffect(() => {
                 if (isAuthChecking) return;
+                const timeoutId = setTimeout(performSave, 2000);
+                return () => clearTimeout(timeoutId);
+            }, [cells, isAuthChecking]);
 
-                const saveData = async () => {
-                    if (user) {
-                        // Save to Firebase (Debounced ideally, but here direct)
-                        // In a real app, use a debounce hook or similar to avoid spamming writes
-                        // For this demo, we'll write on change but maybe check if valid
-                        try {
-                            const { db, doc, setDoc } = window.firebaseServices;
-                            await setDoc(doc(db, 'users', user.uid), { cells, lastUpdated: new Date() });
-                        } catch (e) {
-                            console.error("Failed to save to Firebase:", e);
-                        }
-                    } else if (isGuest) {
-                        localStorage.setItem('pynotebook-content', JSON.stringify(cells));
-                    }
+            // Mobile/Lifecycle Save
+            useEffect(() => {
+                const handleLifecycleSave = () => {
+                     performSave();
                 };
 
-                // Simple timeout debounce to prevent heavy writes
-                const timeoutId = setTimeout(saveData, 1000);
-                return () => clearTimeout(timeoutId);
-            }, [cells, user, isGuest, isAuthChecking]);
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'hidden') {
+                        handleLifecycleSave();
+                    }
+                });
+                window.addEventListener('pagehide', handleLifecycleSave);
+
+                return () => {
+                    document.removeEventListener('visibilitychange', handleLifecycleSave);
+                    window.removeEventListener('pagehide', handleLifecycleSave);
+                };
+            }, []);
 
             const addCell = (type) => {
                 const newCell = {
@@ -1403,8 +1436,17 @@ stdout_val = sys.stdout.getvalue()
                                      </span>
                                    ) : (
                                      <span className="flex items-center text-green-600 dark:text-green-500 font-medium">
-                                       <SimpleIcon name="CheckCircle2" className="h-3 w-3 mr-1" />
-                                       Ready
+                                       {isSaving ? (
+                                           <>
+                                               <SimpleIcon name="Loader2" className="h-3 w-3 mr-1 spinner" />
+                                               Saving...
+                                           </>
+                                       ) : (
+                                           <>
+                                               <SimpleIcon name="CheckCircle2" className="h-3 w-3 mr-1" />
+                                               Ready
+                                           </>
+                                       )}
                                      </span>
                                    )}
                                 </div>
