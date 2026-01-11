@@ -878,6 +878,14 @@
             }, [isDark]);
 
             const toggleTheme = () => setIsDark(!isDark);
+
+            // --- Notebook State ---
+            const [cells, setCells] = useState([
+                { id: '1', type: 'markdown', content: '# Welcome to PyNotebook\n\nThis runs Python entirely in your browser using Pyodide. No server required!\n\nLibraries pre-loaded: `numpy`, `pandas`.', output: '', error: null, isRunning: false },
+                { id: '2', type: 'code', content: 'import numpy as np\n\nprint("Hello from Python!")\nprint(f"Numpy version: {np.__version__}")\n\n# Variables persist between cells\nx = 42', output: '', error: null, isRunning: false },
+                { id: '3', type: 'code', content: 'print(f"The value of x from the previous cell is: {x}")\nprint(f"x squared is: {x**2}")', output: '', error: null, isRunning: false },
+            ]);
+
             // --- Persistence Logic ---
             useEffect(() => {
                 const loadData = async () => {
