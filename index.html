@@ -15,6 +15,53 @@
     <!-- Babel (to compile JSX in browser) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <!-- Font Awesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+
+        // --- FIREBASE CONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyC-tuoxtkVDRk9YhqRJEwlIXLfQxtyTY1A",
+            authDomain: "pynotebookaoh.firebaseapp.com",
+            projectId: "pynotebookaoh",
+            storageBucket: "pynotebookaoh.firebasestorage.app",
+            messagingSenderId: "864102474680",
+            appId: "1:864102474680:web:38ad47e9f68f635261e54d",
+            measurementId: "G-R5NREN74YY"
+        };
+
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            console.log("Firebase initialized");
+        } catch (e) {
+            console.error("Firebase initialization failed. Please check your config.", e);
+        }
+
+        // Expose to global window for React
+        window.firebaseServices = {
+            auth,
+            db,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut,
+            onAuthStateChanged,
+            GoogleAuthProvider,
+            signInWithPopup,
+            sendPasswordResetEmail,
+            doc,
+            getDoc,
+            setDoc
+        };
+    </script>
+
     <!-- PrismJS for Syntax Highlighting -->
     <link href="https://unpkg.com/prismjs@1.29.0/themes/prism.css" rel="stylesheet" />
     <script src="https://unpkg.com/prismjs@1.29.0/components/prism-core.min.js"></script>
@@ -167,6 +214,7 @@
         .code-editor-container {
             position: relative;
             min-height: 2.5rem; /* Ensure minimum height */
+            overflow: auto; /* Enable scrolling for long lines */
         }
         
         .code-editor-textarea {
@@ -174,6 +222,7 @@
             display: block;
             width: 100%;
             height: 100%;
+            min-width: 100%; /* Ensure it spans at least container */
             resize: none;
             color: transparent;
             background: transparent;
@@ -181,6 +230,7 @@
             z-index: 1;
             overflow: hidden;
             outline: none;
+            white-space: pre; /* Force no-wrap to match Prism */
         }
         
         .dark .code-editor-textarea {
@@ -194,8 +244,21 @@
             height: 100%;
             width: 100%;
             pointer-events: none;
-            overflow: hidden;
+            overflow: visible; /* Let content overflow so container scrolls */
             z-index: 0;
+        }
+
+        /* --- Auth Screen Styles (Blue/Black Theme) --- */
+        .main-gradient-text {
+            background: -webkit-linear-gradient(45deg, #3b82f6, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .main-gradient-bg {
+            background: linear-gradient(to right, #1d4ed8, #3b82f6);
+        }
+        .main-gradient-box {
+            background: linear-gradient(to right, #2563eb, #1d4ed8);
         }
     </style>
 </head>
@@ -347,6 +410,181 @@
             }, []);
 
             return { pyodide, isLoading, status, error };
+        };
+
+        // --- Auth Component ---
+        const AuthScreen = ({ onLogin, onGuest }) => {
+            const [email, setEmail] = useState("");
+            const [password, setPassword] = useState("");
+            const [loading, setLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [showPassword, setShowPassword] = useState(false);
+
+            // Helper for setting error
+            const setAuthMessage = (msg, isError = true) => {
+                setError(msg);
+            };
+
+            const handleSignup = async () => {
+                setAuthMessage(null);
+                if (!email || !password) return setAuthMessage("Please enter email and password.");
+                if (password.length < 6) return setAuthMessage("Password must be at least 6 characters.");
+
+                setLoading(true);
+                const { auth, createUserWithEmailAndPassword } = window.firebaseServices;
+                try {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                } catch (err) {
+                    setAuthMessage(err.message.replace("Firebase: ", ""));
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleSignin = async () => {
+                setAuthMessage(null);
+                if (!email || !password) return setAuthMessage("Please enter email and password.");
+
+                setLoading(true);
+                const { auth, signInWithEmailAndPassword } = window.firebaseServices;
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (err) {
+                    setAuthMessage("Invalid email or password. Please try again.");
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleGoogle = async () => {
+                setAuthMessage(null);
+                const { auth, GoogleAuthProvider, signInWithPopup } = window.firebaseServices;
+                if (!auth) return setAuthMessage("Firebase not initialized.");
+                
+                try {
+                    setLoading(true);
+                    await signInWithPopup(auth, new GoogleAuthProvider());
+                } catch (err) {
+                    setAuthMessage(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleForgotPassword = async (e) => {
+                e.preventDefault();
+                setAuthMessage(null);
+                if (!email) return setAuthMessage('Please enter your email to reset password.');
+                
+                const { auth, sendPasswordResetEmail } = window.firebaseServices;
+                try {
+                    await sendPasswordResetEmail(auth, email);
+                    setAuthMessage('Password reset email sent! Check your inbox.', false);
+                } catch (err) {
+                    setAuthMessage(err.message);
+                }
+            };
+
+            return (
+                <div className="auth-form-container screen-transition">
+                    <div className="w-full max-w-md">
+                        <div className="bg-white p-8 rounded-2xl shadow-xl">
+                            <div className="text-center mb-8">
+                                <div className="flex justify-center items-baseline gap-2">
+                                    <img src="/assets/logo.png" alt="Logo" className="w-12 h-12 relative top-1" onError={(e) => e.target.style.display='none'} />
+                                    <div className="pb-2">
+                                        <h1 className="text-5xl font-bold main-gradient-text pb-2">PyNotebook</h1>
+                                    </div>
+                                </div>
+                                <p className="text-gray-600">Python in your browser.</p>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <input 
+                                    id="email-input" 
+                                    type="email" 
+                                    placeholder="Email" 
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100"
+                                />
+                                <div className="relative">
+                                    <input 
+                                        id="password-input" 
+                                        type={showPassword ? "text" : "password"} 
+                                        placeholder="Password" 
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition text-gray-800 dark:text-gray-100"
+                                    />
+                                    <button 
+                                        id="password-toggle" 
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute inset-y-0 right-0 flex items-center px-4 text-gray-600 dark:text-gray-400"
+                                    >
+                                        <i className={`fas ${showPassword ? 'fa-eye' : 'fa-eye-slash'}`}></i>
+                                    </button>
+                                </div>
+                                <div className="flex justify-end items-center">
+                                    <a href="#" onClick={handleForgotPassword} className="text-sm text-blue-600 hover:underline dark:text-blue-400">Forgot Password?</a>
+                                </div>
+                            </div>
+
+                            <div className={`text-sm mt-4 text-center h-4 ${error && !error.includes('sent') ? 'text-red-600' : 'text-green-600'}`}>
+                                {error}
+                            </div>
+
+                            <div className="flex items-center gap-2 mt-4">
+                                <button 
+                                    onClick={handleSignin}
+                                    disabled={loading}
+                                    className="w-full py-3 text-white font-semibold rounded-lg shadow-md hover:opacity-90 transition main-gradient-box flex justify-center items-center h-12 disabled:opacity-50"
+                                >
+                                    {loading ? <i className="fas fa-spinner fa-spin"></i> : "Sign In"}
+                                </button>
+                                <button 
+                                    onClick={handleSignup}
+                                    disabled={loading}
+                                    className="w-full py-3 text-gray-700 bg-gray-200 font-semibold rounded-lg hover:bg-gray-300 transition flex justify-center items-center h-12 disabled:opacity-50"
+                                >
+                                    {loading ? <i className="fas fa-spinner fa-spin"></i> : "Sign Up"}
+                                </button>
+                            </div>
+                            
+                            <div className="flex items-center my-6">
+                                <hr className="flex-grow border-t border-gray-300" />
+                                <span className="px-3 text-gray-500 text-sm">OR</span>
+                                <hr className="flex-grow border-t border-gray-300" />
+                            </div>
+
+                            <button 
+                                onClick={handleGoogle}
+                                disabled={loading}
+                                className="w-full flex items-center justify-center gap-3 py-3 border border-gray-300 rounded-lg hover:bg-gray-100 transition h-12"
+                            >
+                                <img src="/assets/google.webp" alt="Google Icon" className="w-5 h-5" />
+                                <span>Continue with Google</span>
+                            </button>
+
+                            <button 
+                                onClick={onGuest}
+                                className="w-full text-center mt-3 py-3 text-gray-700 bg-gray-100 font-semibold rounded-lg hover:bg-gray-200 transition"
+                            >
+                                Continue as Guest
+                                <span className="block text-xs font-normal text-gray-600">(Saves data only on this device)</span>
+                            </button>
+                        </div>
+
+                        <div className="text-center mt-8">
+                            <a href="mailto:arunthomas04042001@gmail.com" className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 transition-colors dark:text-gray-400 dark:hover:text-blue-400">
+                                <i className="fas fa-envelope"></i>
+                                Reach out to the dev
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            );
         };
 
         // --- Components ---
@@ -561,6 +799,32 @@
             const [focusedId, setFocusedId] = useState(null);
             const [isMenuOpen, setIsMenuOpen] = useState(false);
             const [inputRequest, setInputRequest] = useState(null); // { cellId, prompt, resolve }
+            
+            // Auth State
+            const [user, setUser] = useState(null);
+            const [isGuest, setIsGuest] = useState(false);
+            const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+            // --- Auth Logic ---
+            useEffect(() => {
+                if (window.firebaseServices && window.firebaseServices.auth) {
+                    const unsubscribe = window.firebaseServices.onAuthStateChanged(window.firebaseServices.auth, (u) => {
+                        setUser(u);
+                        setIsAuthChecking(false);
+                    });
+                    return () => unsubscribe();
+                } else {
+                    setIsAuthChecking(false);
+                }
+            }, []);
+
+            const handleLogout = async () => {
+                if (user) {
+                    await window.firebaseServices.signOut(window.firebaseServices.auth);
+                }
+                setIsGuest(false);
+                setUser(null);
+            };
 
             // --- Input Handling Helper ---
             const submitInput = (value) => {
@@ -607,21 +871,66 @@
                 { id: '3', type: 'code', content: 'print(f"The value of x from the previous cell is: {x}")\nprint(f"x squared is: {x**2}")', output: '', error: null, isRunning: false },
             ]);
 
+            // --- Persistence Logic ---
             useEffect(() => {
-                const saved = localStorage.getItem('pynotebook-content');
-                if (saved) {
-                    try {
-                        const parsed = JSON.parse(saved);
-                        if (Array.isArray(parsed)) setCells(parsed);
-                    } catch (e) {
-                        console.error("Failed to load saved notebook", e);
+                const loadData = async () => {
+                    if (user) {
+                        // Load from Firebase
+                        try {
+                            const { db, doc, getDoc } = window.firebaseServices;
+                            const docRef = doc(db, 'users', user.uid);
+                            const docSnap = await getDoc(docRef);
+                            if (docSnap.exists()) {
+                                const data = docSnap.data();
+                                if (data.cells && Array.isArray(data.cells)) {
+                                    setCells(data.cells);
+                                }
+                            }
+                        } catch (e) {
+                            console.error("Failed to load from Firebase:", e);
+                        }
+                    } else if (isGuest) {
+                        // Load from LocalStorage
+                        const saved = localStorage.getItem('pynotebook-content');
+                        if (saved) {
+                            try {
+                                const parsed = JSON.parse(saved);
+                                if (Array.isArray(parsed)) setCells(parsed);
+                            } catch (e) {
+                                console.error("Failed to load saved notebook", e);
+                            }
+                        }
                     }
+                };
+                
+                if (!isAuthChecking) {
+                    loadData();
                 }
-            }, []);
+            }, [user, isGuest, isAuthChecking]);
 
             useEffect(() => {
-                localStorage.setItem('pynotebook-content', JSON.stringify(cells));
-            }, [cells]);
+                if (isAuthChecking) return;
+
+                const saveData = async () => {
+                    if (user) {
+                        // Save to Firebase (Debounced ideally, but here direct)
+                        // In a real app, use a debounce hook or similar to avoid spamming writes
+                        // For this demo, we'll write on change but maybe check if valid
+                        try {
+                            const { db, doc, setDoc } = window.firebaseServices;
+                            await setDoc(doc(db, 'users', user.uid), { cells, lastUpdated: new Date() });
+                        } catch (e) {
+                            console.error("Failed to save to Firebase:", e);
+                        }
+                    } else if (isGuest) {
+                        localStorage.setItem('pynotebook-content', JSON.stringify(cells));
+                    }
+                };
+
+                // Simple timeout debounce to prevent heavy writes
+                const timeoutId = setTimeout(saveData, 1000);
+                return () => clearTimeout(timeoutId);
+            }, [cells, user, isGuest, isAuthChecking]);
 
             const addCell = (type) => {
                 const newCell = {
@@ -827,6 +1136,19 @@ result
                 URL.revokeObjectURL(url);
             };
 
+            // --- Render Logic ---
+            if (isAuthChecking) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                        <SimpleIcon name="Loader2" className="animate-spin h-8 w-8 text-blue-600" />
+                    </div>
+                );
+            }
+
+            if (!user && !isGuest) {
+                return <AuthScreen onLogin={() => {}} onGuest={() => setIsGuest(true)} />;
+            }
+
             // --- Error States ---
             if (loadError === "PROTOCOL_ERROR") {
                  return (
@@ -903,6 +1225,14 @@ result
                             <Button variant="run" size="sm" icon="Play" onClick={runAll} disabled={isLoading || !!loadError}>
                                 Run All
                             </Button>
+                            
+                            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                    {user ? (user.email || "User") : "Guest"}
+                                </span>
+                                <Button variant="ghost" size="icon" icon="LogOut" onClick={handleLogout} title="Logout" />
+                            </div>
                         </div>
 
                         {/* Mobile Menu Button */}
@@ -926,7 +1256,7 @@ result
                     {/* Mobile Menu Dropdown */}
                     {isMenuOpen && (
                         <div className="fixed top-16 left-0 right-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-40 p-4 shadow-lg lg:hidden">
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 gap-3 mb-4">
                                 <Button variant="secondary" size="md" icon="Save" onClick={() => { saveNotebook(); setIsMenuOpen(false); }}>
                                     Save
                                 </Button>
@@ -938,6 +1268,14 @@ result
                                 </Button>
                                 <Button variant="run" size="md" icon="Play" onClick={() => { runAll(); setIsMenuOpen(false); }} disabled={isLoading || !!loadError}>
                                     Run All
+                                </Button>
+                            </div>
+                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                                 <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                    {user ? (user.email || "User") : "Guest"}
+                                </span>
+                                <Button variant="ghost" size="sm" icon="LogOut" onClick={() => { handleLogout(); setIsMenuOpen(false); }}>
+                                    Logout
                                 </Button>
                             </div>
                         </div>
