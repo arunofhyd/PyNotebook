@@ -812,7 +812,7 @@
             return (
                 <button
                     onClick={handleClick}
-                    className={`absolute top-2 right-2 p-1.5 bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-700 rounded-md text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-all shadow-sm border border-gray-200 dark:border-gray-700 opacity-0 group-hover:opacity-100 focus:opacity-100 ${className}`}
+                    className={`flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 ${className}`}
                     title="Copy to clipboard"
                 >
                     {copied ? <SimpleIcon name="Check" className="h-4 w-4 text-green-500" /> : <SimpleIcon name="Copy" className="h-4 w-4" />}
@@ -831,14 +831,11 @@
                         new ClipboardItem({ [blob.type]: blob })
                     ]);
                 } else if (type === 'html') {
-                     // Create plain text version (simple strip tags) for the plain text payload
                      const tmp = document.createElement("DIV");
                      tmp.innerHTML = content;
                      const plainText = tmp.innerText || tmp.textContent || "";
-
                      const blobText = new Blob([plainText], { type: 'text/plain' });
                      const blobHtml = new Blob([content], { type: 'text/html' });
-
                      await navigator.clipboard.write([
                          new ClipboardItem({
                              "text/plain": blobText,
@@ -853,31 +850,51 @@
 
         const OutputBlock = ({ output, isError, images, html }) => {
             if (!output && (!images || images.length === 0) && !html) return null;
+
+            const renderRow = (content, onCopy, isError = false) => (
+                <div className="flex gap-4 mt-2 group items-start">
+                    {/* Gutter: Copy Button */}
+                    <div className="flex-shrink-0 w-8 flex justify-center pt-1">
+                       {!isError && onCopy && <CopyButton onClick={onCopy} />}
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-grow min-w-0 overflow-hidden">
+                        {content}
+                    </div>
+                </div>
+            );
+
             return (
-                <div className="mt-2 space-y-2">
-                    {output && (
-                        <div className={`relative group p-3 font-mono text-sm whitespace-pre-wrap rounded-md border-l-4 ${
+                <div className="mt-2 space-y-0">
+                    {output && renderRow(
+                        <div className={`p-3 font-mono text-sm whitespace-pre-wrap rounded-md border-l-4 ${
                             isError
                             ? 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-500'
                             : 'bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-gray-400 dark:border-gray-600'
                         }`}>
                             {output}
-                            {!isError && <CopyButton onClick={() => copyToClipboard('text', output)} />}
-                        </div>
+                        </div>,
+                        isError ? null : () => copyToClipboard('text', output),
+                        isError
                     )}
 
                     {images && images.map((imgSrc, i) => (
-                        <div key={i} className="relative group overflow-auto bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700 text-center">
-                            <img src={`data:image/png;base64,${imgSrc}`} alt="Plot" className="max-w-full h-auto mx-auto" />
-                            <CopyButton onClick={() => copyToClipboard('image', imgSrc)} className="left-2 right-auto" />
-                        </div>
+                        <React.Fragment key={i}>
+                            {renderRow(
+                                <div className="overflow-auto bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700 text-center">
+                                    <img src={`data:image/png;base64,${imgSrc}`} alt="Plot" className="max-w-full h-auto mx-auto" />
+                                </div>,
+                                () => copyToClipboard('image', imgSrc)
+                            )}
+                        </React.Fragment>
                     ))}
 
-                    {html && (
-                        <div className="relative group overflow-x-auto bg-white dark:bg-gray-800 p-4 rounded border border-gray-200 dark:border-gray-700">
+                    {html && renderRow(
+                        <div className="overflow-x-auto bg-white dark:bg-gray-800 p-4 rounded border border-gray-200 dark:border-gray-700">
                             <div dangerouslySetInnerHTML={{ __html: html }} className="prose dark:prose-invert max-w-none text-sm" />
-                            <CopyButton onClick={() => copyToClipboard('html', html)} />
-                        </div>
+                        </div>,
+                        () => copyToClipboard('html', html)
                     )}
                 </div>
             );
@@ -1109,13 +1126,33 @@
 
                 if (!currentUser && !currentIsGuest) return;
 
+                // Optimization: Strip transient output (images, html, stdout) to save storage/bandwidth.
+                // Only code and markdown content is persisted.
+                const cleanCells = currentCells.map(c => ({
+                    id: c.id,
+                    type: c.type,
+                    content: c.content
+                }));
+
+                const payload = JSON.stringify(cleanCells);
+
+                // Safety Check: Firestore has a 1MiB (1,048,576 bytes) limit per document.
+                // We limit to ~950KB to leave room for metadata and overhead.
+                // This allows ample space for code and text (e.g. a very large novel).
+                if (payload.length > 950000) {
+                    console.warn("Save aborted: Notebook content exceeds Firestore 1MB limit.");
+                    alert("Notebook is too large to save! Please split it into smaller sections.");
+                    return;
+                }
+
                 setIsSaving(true);
                 try {
                     if (currentUser) {
                          const { db, doc, setDoc } = window.firebaseServices;
-                         await setDoc(doc(db, 'users', currentUser.uid), { cells: currentCells, lastUpdated: new Date() });
+                         // Store 'cleanCells' instead of 'currentCells'
+                         await setDoc(doc(db, 'users', currentUser.uid), { cells: cleanCells, lastUpdated: new Date() });
                     } else if (currentIsGuest) {
-                         localStorage.setItem('pynotebook-content', JSON.stringify(currentCells));
+                         localStorage.setItem('pynotebook-content', payload);
                     }
                 } catch (e) {
                     console.error("Failed to save:", e);
