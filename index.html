@@ -491,19 +491,15 @@ class TurtleScreen:
         emit("bye")
 
     def textinput(self, title, prompt):
-        # Use browser prompt for simplicity in this shim
-        return js_prompt(prompt, "")
+        # Placeholder: This should be transformed by InputTransformer to async_textinput
+        # If not transformed (e.g. inside function), it will return None or raise error if we don't handle it.
+        print(f"Warning: textinput('{title}', '{prompt}') called synchronously. It might not work as expected.")
+        return None
 
     def numinput(self, title, prompt, default=None, minval=None, maxval=None):
-        res = js_prompt(prompt, str(default) if default is not None else "")
-        if res is None: return None
-        try:
-            val = float(res)
-            if minval is not None and val < minval: return minval # Or ask again? Standard turtle returns None or clamps? Actually asks again usually.
-            if maxval is not None and val > maxval: return maxval
-            return val
-        except:
-            return None
+        # Placeholder
+        print(f"Warning: numinput('{title}', '{prompt}') called synchronously.")
+        return default
 
     def exitonclick(self):
         pass
@@ -1641,8 +1637,11 @@ def exitonclick(): _SCREEN.exitonclick()
                                             </div>
                                         )}
                                         {isInputActive && (
-                                            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-                                                <p className="text-sm font-semibold mb-2 text-blue-800 dark:text-blue-300">{inputRequest.prompt}</p>
+                                            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md animate-in fade-in slide-in-from-top-1">
+                                                {inputRequest.title && (
+                                                    <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">{inputRequest.title}</h4>
+                                                )}
+                                                <p className="text-sm font-medium mb-2 text-gray-800 dark:text-gray-200">{inputRequest.prompt}</p>
                                                 <div className="flex gap-2">
                                                     <input 
                                                         type="text" 
@@ -1718,9 +1717,9 @@ def exitonclick(): _SCREEN.exitonclick()
             // Register global input handler for Pyodide
             useEffect(() => {
                 if (!window.pyNotebookInputHandler) {
-                    window.pyNotebookInputHandler = (cellId, promptText) => {
+                    window.pyNotebookInputHandler = (cellId, promptText, title) => {
                         return new Promise((resolve) => {
-                            setInputRequest({ cellId, prompt: promptText, resolve });
+                            setInputRequest({ cellId, prompt: promptText, title, resolve });
                         });
                     };
                 }
@@ -1973,9 +1972,23 @@ from js import window
 
 ${themeSetup}
 
-# Define async input helper that calls JS
+# Define async input helpers that call JS
 async def async_input(prompt=""):
-    return await window.pyNotebookInputHandler("${id}", prompt)
+    return await window.pyNotebookInputHandler("${id}", prompt, None)
+
+async def async_textinput(title, prompt):
+    return await window.pyNotebookInputHandler("${id}", prompt, title)
+
+async def async_numinput(title, prompt, default=None, minval=None, maxval=None):
+    val_str = await window.pyNotebookInputHandler("${id}", prompt, title)
+    if val_str is None: return None
+    try:
+        val = float(val_str)
+        if minval is not None and val < minval: return minval
+        if maxval is not None and val > maxval: return maxval
+        return val
+    except:
+        return None
 
 # AST Transformer to convert input() -> await async_input()
 class InputTransformer(ast.NodeTransformer):
@@ -2000,15 +2013,40 @@ class InputTransformer(ast.NodeTransformer):
         if self.in_sync_function:
             return self.generic_visit(node)
             
-        if isinstance(node.func, ast.Name) and node.func.id == 'input':
+        # Match input(), textinput(), numinput() (global functions)
+        if isinstance(node.func, ast.Name):
+            if node.func.id == 'input':
+                new_node = ast.Await(
+                    value=ast.Call(
+                        func=ast.Name(id='async_input', ctx=ast.Load()),
+                        args=node.args,
+                        keywords=node.keywords
+                    )
+                )
+                return ast.copy_location(new_node, node)
+            elif node.func.id in ['textinput', 'numinput']:
+                func_name = 'async_textinput' if node.func.id == 'textinput' else 'async_numinput'
+                new_node = ast.Await(
+                    value=ast.Call(
+                        func=ast.Name(id=func_name, ctx=ast.Load()),
+                        args=node.args,
+                        keywords=node.keywords
+                    )
+                )
+                return ast.copy_location(new_node, node)
+
+        # Match *.textinput() and *.numinput() (e.g. screen.textinput, turtle.textinput)
+        if isinstance(node.func, ast.Attribute) and node.func.attr in ['textinput', 'numinput']:
+            func_name = 'async_textinput' if node.func.attr == 'textinput' else 'async_numinput'
             new_node = ast.Await(
                 value=ast.Call(
-                    func=ast.Name(id='async_input', ctx=ast.Load()),
+                    func=ast.Name(id=func_name, ctx=ast.Load()),
                     args=node.args,
                     keywords=node.keywords
                 )
             )
             return ast.copy_location(new_node, node)
+
         return self.generic_visit(node)
 
 `);
