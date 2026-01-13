@@ -466,10 +466,10 @@ import sys
 from js import window
 from js import prompt as js_prompt
 
-def emit(cmd, *args):
+def emit(id, cmd, *args):
     # Convert args to list for JS
     # In Pyodide, arguments are passed as *args
-    window.pushTurtleCmd(cmd, list(args))
+    window.pushTurtleCmd(id, cmd, list(args))
 
 class TurtleScreen:
     def __init__(self):
@@ -478,17 +478,17 @@ class TurtleScreen:
     def bgcolor(self, color=None):
         if color is not None:
             self._bgcolor = color
-            emit("bgcolor", color)
+            emit(None, "bgcolor", color)
         return self._bgcolor
 
     def clear(self):
-        emit("clear_screen")
+        emit(None, "clear_screen")
 
     def setup(self, width=0.5, height=0.75, startx=None, starty=None):
         pass
 
     def bye(self):
-        emit("bye")
+        emit(None, "bye")
 
     def textinput(self, title, prompt):
         # Placeholder: This should be transformed by InputTransformer to async_textinput
@@ -509,8 +509,14 @@ _SCREEN = TurtleScreen()
 def Screen():
     return _SCREEN
 
+_turtle_id_counter = 0
+
 class Turtle:
     def __init__(self, shape="classic", undobuffersize=1000, visible=True):
+        global _turtle_id_counter
+        self._id = _turtle_id_counter
+        _turtle_id_counter += 1
+
         self._x = 0.0
         self._y = 0.0
         self._angle = 0.0 # Degrees. 0 = East
@@ -521,7 +527,9 @@ class Turtle:
         self._speed = 6
         self._visible = visible
         self._is_filling = False
-        emit("create_turtle")
+        self._shape = shape
+
+        emit(self._id, "create_turtle")
         if shape:
             self.shape(shape)
 
@@ -529,7 +537,7 @@ class Turtle:
         rad = math.radians(self._angle)
         self._x += distance * math.cos(rad)
         self._y += distance * math.sin(rad)
-        emit("forward", distance)
+        emit(self._id, "forward", distance)
 
     def fd(self, distance): self.forward(distance)
 
@@ -541,13 +549,13 @@ class Turtle:
 
     def right(self, angle):
         self._angle -= angle
-        emit("right", angle)
+        emit(self._id, "right", angle)
 
     def rt(self, angle): self.right(angle)
 
     def left(self, angle):
         self._angle += angle
-        emit("left", angle)
+        emit(self._id, "left", angle)
 
     def lt(self, angle): self.left(angle)
 
@@ -555,7 +563,7 @@ class Turtle:
         if y is None: x, y = x
         self._x = float(x)
         self._y = float(y)
-        emit("goto", self._x, self._y)
+        emit(self._id, "goto", self._x, self._y)
 
     def setpos(self, x, y=None): self.goto(x, y)
     def setposition(self, x, y=None): self.goto(x, y)
@@ -586,17 +594,17 @@ class Turtle:
 
     def speed(self, s):
         self._speed = s
-        emit("speed", s)
+        emit(self._id, "speed", s)
 
     def penup(self):
         self._pen_down = False
-        emit("penup")
+        emit(self._id, "penup")
     def pu(self): self.penup()
     def up(self): self.penup()
 
     def pendown(self):
         self._pen_down = True
-        emit("pendown")
+        emit(self._id, "pendown")
     def pd(self): self.pendown()
     def down(self): self.pendown()
 
@@ -604,7 +612,7 @@ class Turtle:
 
     def width(self, w):
         self._pensize = w
-        emit("pensize", w)
+        emit(self._id, "pensize", w)
     def pensize(self, w=None):
         if w is None: return self._pensize
         self.width(w)
@@ -617,44 +625,44 @@ class Turtle:
             fcolor = args[1]
         self._pencolor = pcolor
         self._fillcolor = fcolor
-        emit("color", pcolor, fcolor)
+        emit(self._id, "color", pcolor, fcolor)
 
     def pencolor(self, *args):
         if len(args) == 0: return self._pencolor
         self._pencolor = args[0]
-        emit("pencolor", self._pencolor)
+        emit(self._id, "pencolor", self._pencolor)
 
     def fillcolor(self, *args):
         if len(args) == 0: return self._fillcolor
         self._fillcolor = args[0]
-        emit("fillcolor", self._fillcolor)
+        emit(self._id, "fillcolor", self._fillcolor)
 
     def begin_fill(self):
         self._is_filling = True
-        emit("begin_fill")
+        emit(self._id, "begin_fill")
 
     def end_fill(self):
         self._is_filling = False
-        emit("end_fill")
+        emit(self._id, "end_fill")
 
     def write(self, arg, move=False, align="left", font=("Arial", 8, "normal")):
-        emit("write", str(arg), move, align, font)
+        emit(self._id, "write", str(arg), move, align, font)
 
     def showturtle(self):
         self._visible = True
-        emit("showturtle")
+        emit(self._id, "showturtle")
     def st(self): self.showturtle()
 
     def hideturtle(self):
         self._visible = False
-        emit("hideturtle")
+        emit(self._id, "hideturtle")
     def ht(self): self.hideturtle()
 
     def isvisible(self): return self._visible
 
     def shape(self, name):
-        # Placeholder for shape change
-        pass
+        self._shape = name
+        emit(self._id, "shape", name)
 
     def setheading(self, to_angle):
         diff = to_angle - self._angle
@@ -669,12 +677,12 @@ class Turtle:
     def pos(self): return (self._x, self._y)
 
     def clear(self):
-        emit("clear")
+        emit(self._id, "clear")
 
     def reset(self):
         self._x = 0; self._y = 0; self._angle = 0
         self._pen_down = True; self._pencolor="black"; self._fillcolor="black"
-        emit("reset")
+        emit(self._id, "reset")
 
 _default_turtle = Turtle()
 
@@ -753,12 +761,12 @@ def exitonclick(): _SCREEN.exitonclick()
                 // Initialize Turtle Queue globally
                 window.turtleQueue = [];
                 window.resetTurtleQueue = () => { window.turtleQueue = []; };
-                window.pushTurtleCmd = (cmd, args) => {
+                window.pushTurtleCmd = (id, cmd, args) => {
                     let jsArgs = args;
                     if (args && typeof args.toJs === 'function') {
                         jsArgs = args.toJs();
                     }
-                    window.turtleQueue.push({ cmd, args: jsArgs });
+                    window.turtleQueue.push({ id, cmd, args: jsArgs });
                 };
 
                 const loadPyodideScript = async () => {
@@ -1022,18 +1030,8 @@ def exitonclick(): _SCREEN.exitonclick()
                 const width = canvas.width = 600;
                 const height = canvas.height = 400;
 
-                // State
-                let turtle = {
-                    x: 0,
-                    y: 0,
-                    angle: 0, // 0 = East
-                    penDown: true,
-                    penColor: "black",
-                    fillColor: "black",
-                    penSize: 1,
-                    isVisible: true,
-                    speed: 6 // 0=fastest, 1=slowest, 10=fast
-                };
+                // State: Map of turtles by ID
+                let turtles = {};
 
                 let cmdIndex = 0;
                 let requestID;
@@ -1046,141 +1044,232 @@ def exitonclick(): _SCREEN.exitonclick()
                     y: height / 2 - y
                 });
 
+                // Helper to get or create turtle
+                const getTurtle = (id) => {
+                    if (turtles[id]) return turtles[id];
+                    // Default fallback if not created explicitly (should use create_turtle cmd)
+                    turtles[id] = {
+                        x: 0, y: 0, angle: 0,
+                        penDown: true, penColor: "black", fillColor: "black",
+                        penSize: 1, isVisible: true, speed: 6, shape: "classic"
+                    };
+                    return turtles[id];
+                };
+
                 // Initial Draw
                 ctx.fillStyle = "white"; // Bgcolor default
                 ctx.fillRect(0, 0, width, height);
                 ctx.lineCap = "round";
                 ctx.lineJoin = "round";
 
-                const drawTurtle = () => {
-                    if (!turtle.isVisible) return;
-                    const { x, y } = toCanvas(turtle.x, turtle.y);
-
-                    ctx.save();
-                    ctx.translate(x, y);
-                    ctx.rotate(-turtle.angle * Math.PI / 180); // Rotate counter-clockwise for canvas
-
-                    // Draw Triangle Cursor
+                const drawShape = (ctx, shape, color) => {
+                    ctx.fillStyle = color;
                     ctx.beginPath();
-                    ctx.moveTo(10, 0);
-                    ctx.lineTo(-5, 5);
-                    ctx.lineTo(-5, -5);
+                    if (shape === "turtle") {
+                        // Shell
+                        ctx.ellipse(0, 0, 6, 8, 0, 0, 2 * Math.PI);
+                        // Head
+                        ctx.ellipse(0, 9, 3, 3, 0, 0, 2 * Math.PI);
+                        // Legs
+                        ctx.ellipse(6, 5, 2, 4, Math.PI/4, 0, 2 * Math.PI);
+                        ctx.ellipse(-6, 5, 2, 4, -Math.PI/4, 0, 2 * Math.PI);
+                        ctx.ellipse(6, -5, 2, 4, -Math.PI/4, 0, 2 * Math.PI);
+                        ctx.ellipse(-6, -5, 2, 4, Math.PI/4, 0, 2 * Math.PI);
+                    } else if (shape === "circle") {
+                        ctx.arc(0, 0, 6, 0, 2 * Math.PI);
+                    } else if (shape === "square") {
+                        ctx.rect(-6, -6, 12, 12);
+                    } else if (shape === "triangle") {
+                        ctx.moveTo(0, 10);
+                        ctx.lineTo(8, -7);
+                        ctx.lineTo(-8, -7);
+                    } else {
+                        // Classic / Arrow
+                        ctx.moveTo(10, 0);
+                        ctx.lineTo(-5, 5);
+                        ctx.lineTo(-5, -5);
+                    }
                     ctx.closePath();
-
-                    ctx.fillStyle = turtle.penColor;
                     ctx.fill();
-                    ctx.restore();
+                    ctx.stroke();
                 };
 
-                // We need to keep a persistent image of the drawing,
-                // because we clear/redraw for the turtle cursor animation.
-                // Or we can use two layers? Canvas API is single layer.
-                // Solution: Use `getImageData` / `putImageData` to save "background" before drawing turtle?
-                // Or just don't clear?
-                // If we don't clear, the turtle leaves a trail of itself.
-                // Standard approach: Save the "drawing" canvas state, restore it, then draw turtle.
-                // Efficient approach: Create an offscreen canvas for the drawing.
+                const drawTurtles = () => {
+                    Object.values(turtles).forEach(t => {
+                        if (!t.isVisible) return;
+                        const { x, y } = toCanvas(t.x, t.y);
+                        ctx.save();
+                        ctx.translate(x, y);
+                        // Canvas rotation is clockwise, Turtle is counter-clockwise.
+                        // Standard 'classic' shape points East (0).
+                        // If shape is 'turtle', it usually points North (90)?
+                        // Standard python turtle shape points Right/East by default.
+                        // But 'turtle' shape drawing: (0, 9) is head. That's +Y (North).
+                        // So if angle is 0 (East), we need to rotate drawing by -90?
+                        // Let's assume standard orientation is East.
+                        // My 'turtle' drawing head is at +Y. East is +X.
+                        // So I need to rotate turtle shape by -90 deg to face East.
+
+                        let rotation = -t.angle * Math.PI / 180;
+                        if (t.shape === 'turtle') {
+                            rotation += Math.PI / 2;
+                        }
+                        if (t.shape === 'triangle') {
+                            rotation += Math.PI / 2; // My triangle points +Y
+                        }
+
+                        ctx.rotate(rotation);
+
+                        // Draw
+                        ctx.strokeStyle = t.penColor; // Outline same as pen
+                        drawShape(ctx, t.shape, t.fillColor);
+
+                        ctx.restore();
+                    });
+                };
+
+                // Persistent drawing layer
                 const drawingCanvas = document.createElement('canvas');
                 drawingCanvas.width = width;
                 drawingCanvas.height = height;
                 const dCtx = drawingCanvas.getContext('2d');
-                // Init drawing canvas background
                 dCtx.fillStyle = "white";
                 dCtx.fillRect(0, 0, width, height);
 
                 const renderFrame = () => {
-                    // Calculate how many commands to process per frame based on speed
-                    // Speed 0: All at once.
-                    // Speed 1: Slow.
-                    // Speed 10: Fast.
                     let batchSize = 1;
-                    if (turtle.speed === 0) batchSize = 10000;
-                    else batchSize = turtle.speed;
+
+                    // Determine speed from current command
+                    if (cmdIndex < queue.length) {
+                        const nextCmd = queue[cmdIndex];
+                        // If global cmd, default speed. If turtle cmd, use turtle speed.
+                        if (nextCmd.id !== null && turtles[nextCmd.id]) {
+                            const s = turtles[nextCmd.id].speed;
+                            batchSize = (s === 0) ? 10000 : s;
+                        }
+                    }
 
                     for (let i = 0; i < batchSize; i++) {
                         if (cmdIndex >= queue.length) {
                             setIsPlaying(false);
                             // Final Draw
                             ctx.drawImage(drawingCanvas, 0, 0);
-                            drawTurtle();
+                            drawTurtles();
                             return;
                         }
 
-                        const { cmd, args } = queue[cmdIndex++];
+                        const { id, cmd, args } = queue[cmdIndex++];
 
-                        // Execute Command on dCtx (Drawing Layer)
+                        // Global commands
+                        if (cmd === 'bgcolor') {
+                            dCtx.fillStyle = args[0];
+                            dCtx.fillRect(0, 0, width, height);
+                            continue;
+                        }
+                        if (cmd === 'clear_screen') {
+                            dCtx.fillStyle = "white"; // Reset to white or keep current?
+                            // Standard clear resets everything.
+                            dCtx.fillRect(0, 0, width, height);
+                            continue;
+                        }
+
+                        // Turtle Commands
+                        if (id === null) continue; // Should not happen for draw commands
+
+                        if (cmd === 'create_turtle') {
+                            turtles[id] = {
+                                x: 0, y: 0, angle: 0,
+                                penDown: true,
+                                penColor: "black",
+                                fillColor: "black",
+                                penSize: 1,
+                                isVisible: true,
+                                speed: 6,
+                                shape: "classic"
+                            };
+                            continue;
+                        }
+
+                        let t = getTurtle(id);
+
                         switch (cmd) {
                             case "forward": {
                                 const dist = args[0];
-                                const rad = turtle.angle * Math.PI / 180;
+                                const rad = t.angle * Math.PI / 180;
                                 const dx = dist * Math.cos(rad);
                                 const dy = dist * Math.sin(rad);
-                                const newX = turtle.x + dx;
-                                const newY = turtle.y + dy;
+                                const newX = t.x + dx;
+                                const newY = t.y + dy;
 
-                                if (turtle.penDown) {
-                                    const start = toCanvas(turtle.x, turtle.y);
+                                if (t.penDown) {
+                                    const start = toCanvas(t.x, t.y);
                                     const end = toCanvas(newX, newY);
                                     dCtx.beginPath();
                                     dCtx.moveTo(start.x, start.y);
                                     dCtx.lineTo(end.x, end.y);
-                                    dCtx.strokeStyle = turtle.penColor;
-                                    dCtx.lineWidth = turtle.penSize;
+                                    dCtx.strokeStyle = t.penColor;
+                                    dCtx.lineWidth = t.penSize;
                                     dCtx.stroke();
                                 }
-                                turtle.x = newX;
-                                turtle.y = newY;
+                                t.x = newX;
+                                t.y = newY;
                                 break;
                             }
                             case "right":
-                                turtle.angle -= args[0];
+                                t.angle -= args[0];
                                 break;
                             case "left":
-                                turtle.angle += args[0];
+                                t.angle += args[0];
                                 break;
                             case "goto":
-                                turtle.x = args[0];
-                                turtle.y = args[1];
+                                t.x = args[0];
+                                t.y = args[1];
                                 break;
                             case "penup":
-                                turtle.penDown = false;
+                                t.penDown = false;
                                 break;
                             case "pendown":
-                                turtle.penDown = true;
+                                t.penDown = true;
                                 break;
                             case "color":
-                                turtle.penColor = args[0];
-                                turtle.fillColor = args[1];
+                                t.penColor = args[0];
+                                t.fillColor = args[1];
                                 break;
                             case "pencolor":
-                                turtle.penColor = args[0];
+                                t.penColor = args[0];
                                 break;
                             case "fillcolor":
-                                turtle.fillColor = args[0];
+                                t.fillColor = args[0];
                                 break;
                             case "pensize":
-                                turtle.penSize = args[0];
-                                break;
-                            case "bgcolor":
-                                dCtx.fillStyle = args[0];
-                                dCtx.fillRect(0, 0, width, height);
+                                t.penSize = args[0];
                                 break;
                             case "speed":
-                                turtle.speed = args[0];
+                                t.speed = args[0];
                                 break;
                             case "reset":
                             case "clear":
-                                dCtx.fillStyle = "white"; // Or current bgcolor?
-                                dCtx.fillRect(0, 0, width, height);
-                                turtle.x = 0; turtle.y = 0; turtle.angle = 0;
+                                // If clear, just clear drawing? But global clear was separate.
+                                // Turtle.clear() clears what *this* turtle drew.
+                                // That is hard with single canvas layer.
+                                // For now, treat as no-op or clear screen?
+                                // Standard turtle: clear() deletes the turtle's drawings from the screen.
+                                // With one canvas, we can't delete just one turtle's lines.
+                                // IGNORE for now or implement layers later.
+                                if (cmd === 'reset') {
+                                     t.x = 0; t.y = 0; t.angle = 0;
+                                     t.penDown = true; t.penColor="black"; t.fillColor="black";
+                                }
                                 break;
                             case "hideturtle":
-                                turtle.isVisible = false;
+                                t.isVisible = false;
                                 break;
                             case "showturtle":
-                                turtle.isVisible = true;
+                                t.isVisible = true;
                                 break;
-                            // Add more cases as needed (write, circle, begin_fill, etc)
+                            case "shape":
+                                t.shape = args[0];
+                                break;
                             default:
                                 break;
                         }
@@ -1189,7 +1278,7 @@ def exitonclick(): _SCREEN.exitonclick()
                     // Render to Main Canvas
                     ctx.clearRect(0, 0, width, height);
                     ctx.drawImage(drawingCanvas, 0, 0);
-                    drawTurtle();
+                    drawTurtles();
 
                     requestID = requestAnimationFrame(renderFrame);
                 };
@@ -1562,6 +1651,7 @@ def exitonclick(): _SCREEN.exitonclick()
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); runCell(cell.id); }}
                                         disabled={!isRuntimeReady || cell.isRunning}
+                                        title="Run Cell"
                                         className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
                                             cell.isRunning 
                                             ? 'bg-gray-100 dark:bg-gray-800 cursor-wait text-gray-500' 
