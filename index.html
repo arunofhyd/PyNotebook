@@ -464,6 +464,7 @@
 import math
 import sys
 from js import window
+from js import prompt as js_prompt
 
 def emit(cmd, *args):
     # Convert args to list for JS
@@ -489,13 +490,31 @@ class TurtleScreen:
     def bye(self):
         emit("bye")
 
+    def textinput(self, title, prompt):
+        # Use browser prompt for simplicity in this shim
+        return js_prompt(prompt, "")
+
+    def numinput(self, title, prompt, default=None, minval=None, maxval=None):
+        res = js_prompt(prompt, str(default) if default is not None else "")
+        if res is None: return None
+        try:
+            val = float(res)
+            if minval is not None and val < minval: return minval # Or ask again? Standard turtle returns None or clamps? Actually asks again usually.
+            if maxval is not None and val > maxval: return maxval
+            return val
+        except:
+            return None
+
+    def exitonclick(self):
+        pass
+
 _SCREEN = TurtleScreen()
 
 def Screen():
     return _SCREEN
 
 class Turtle:
-    def __init__(self):
+    def __init__(self, shape="classic", undobuffersize=1000, visible=True):
         self._x = 0.0
         self._y = 0.0
         self._angle = 0.0 # Degrees. 0 = East
@@ -504,9 +523,11 @@ class Turtle:
         self._fillcolor = "black"
         self._pensize = 1
         self._speed = 6
-        self._visible = True
+        self._visible = visible
         self._is_filling = False
         emit("create_turtle")
+        if shape:
+            self.shape(shape)
 
     def forward(self, distance):
         rad = math.radians(self._angle)
@@ -635,6 +656,10 @@ class Turtle:
 
     def isvisible(self): return self._visible
 
+    def shape(self, name):
+        # Placeholder for shape change
+        pass
+
     def setheading(self, to_angle):
         diff = to_angle - self._angle
         self.left(diff)
@@ -694,6 +719,7 @@ def st(): _default_turtle.st()
 def hideturtle(): _default_turtle.hideturtle()
 def ht(): _default_turtle.ht()
 def isvisible(): return _default_turtle.isvisible()
+def shape(name): _default_turtle.shape(name)
 def setheading(to_angle): _default_turtle.setheading(to_angle)
 def seth(to_angle): _default_turtle.seth(to_angle)
 def heading(): return _default_turtle.heading()
@@ -706,6 +732,9 @@ def mainloop(): pass
 def bgcolor(c): _SCREEN.bgcolor(c)
 def clear(): _default_turtle.clear()
 def reset(): _default_turtle.reset()
+def textinput(title, prompt): return _SCREEN.textinput(title, prompt)
+def numinput(title, prompt, default=None, minval=None, maxval=None): return _SCREEN.numinput(title, prompt, default, minval, maxval)
+def exitonclick(): _SCREEN.exitonclick()
 `;
 
         const usePyodide = () => {
@@ -2371,7 +2400,7 @@ stdout_val = sys.stdout.getvalue()
                            <div className="fixed inset-0 z-30 bg-black/5 dark:bg-black/20" onClick={() => setIsMenuOpen(false)}></div>
 
                            {/* Desktop Bubble */}
-                           <div className="hidden lg:block absolute right-4 top-16 mt-2 w-96 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                           <div className="hidden lg:block absolute right-4 top-16 mt-2 w-64 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                                <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
                                     <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Signed in as</div>
                                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={user ? user.email : "Guest Session"}>
