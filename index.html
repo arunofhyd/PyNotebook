@@ -240,6 +240,22 @@
         .cm-s-eclipse .cm-hr { color: #999 !important; }
         .cm-s-eclipse .cm-link { color: #0077aa !important; }
 
+        /* Pandas Dataframe Styling */
+        .dataframe th, .dataframe td {
+            padding: 0.5rem;
+            border: 1px solid #e5e7eb; /* gray-200 */
+        }
+        .dark .dataframe th, .dark .dataframe td {
+            border-color: #374151; /* gray-700 */
+        }
+        .dataframe thead th {
+            background-color: #f9fafb; /* gray-50 */
+            font-weight: 600;
+        }
+        .dark .dataframe thead th {
+            background-color: #1f2937; /* gray-800 */
+        }
+
         /* Dark mode overrides for Prism */
         .dark code[class*="language-"],
         .dark pre[class*="language-"] {
@@ -840,7 +856,7 @@ def exitonclick(): _SCREEN.exitonclick()
         const AuthScreen = ({ onLogin, onGuest }) => {
             const [email, setEmail] = useState("");
             const [password, setPassword] = useState("");
-            const [loading, setLoading] = useState(false);
+            const [loadingAction, setLoadingAction] = useState(null);
             const [error, setError] = useState(null);
             const [showPassword, setShowPassword] = useState(false);
 
@@ -854,14 +870,14 @@ def exitonclick(): _SCREEN.exitonclick()
                 if (!email || !password) return setAuthMessage("Please enter email and password.");
                 if (password.length < 6) return setAuthMessage("Password must be at least 6 characters.");
 
-                setLoading(true);
+                setLoadingAction('signup');
                 const { auth, createUserWithEmailAndPassword } = window.firebaseServices;
                 try {
                     await createUserWithEmailAndPassword(auth, email, password);
                 } catch (err) {
                     setAuthMessage(err.message.replace("Firebase: ", ""));
                 } finally {
-                    setLoading(false);
+                    setLoadingAction(null);
                 }
             };
 
@@ -869,14 +885,14 @@ def exitonclick(): _SCREEN.exitonclick()
                 setAuthMessage(null);
                 if (!email || !password) return setAuthMessage("Please enter email and password.");
 
-                setLoading(true);
+                setLoadingAction('signin');
                 const { auth, signInWithEmailAndPassword } = window.firebaseServices;
                 try {
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (err) {
                     setAuthMessage("Invalid email or password. Please try again.");
                 } finally {
-                    setLoading(false);
+                    setLoadingAction(null);
                 }
             };
 
@@ -886,12 +902,12 @@ def exitonclick(): _SCREEN.exitonclick()
                 if (!auth) return setAuthMessage("Firebase not initialized.");
                 
                 try {
-                    setLoading(true);
+                    setLoadingAction('google');
                     await signInWithPopup(auth, new GoogleAuthProvider());
                 } catch (err) {
                     setAuthMessage(err.message);
                 } finally {
-                    setLoading(false);
+                    setLoadingAction(null);
                 }
             };
 
@@ -960,17 +976,17 @@ def exitonclick(): _SCREEN.exitonclick()
                             <div className="flex items-center gap-2 mt-4">
                                 <button 
                                     onClick={handleSignin}
-                                    disabled={loading}
+                                    disabled={!!loadingAction}
                                     className="w-full py-3 text-white font-semibold rounded-lg shadow-md hover:opacity-90 transition main-gradient-box flex justify-center items-center h-12 disabled:opacity-50"
                                 >
-                                    {loading ? <i className="fas fa-spinner fa-spin"></i> : "Sign In"}
+                                    {loadingAction === 'signin' ? <i className="fas fa-spinner fa-spin"></i> : "Sign In"}
                                 </button>
                                 <button 
                                     onClick={handleSignup}
-                                    disabled={loading}
+                                    disabled={!!loadingAction}
                                     className="w-full py-3 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 font-semibold rounded-lg transition flex justify-center items-center h-12 disabled:opacity-50"
                                 >
-                                    {loading ? <i className="fas fa-spinner fa-spin"></i> : "Sign Up"}
+                                    {loadingAction === 'signup' ? <i className="fas fa-spinner fa-spin"></i> : "Sign Up"}
                                 </button>
                             </div>
                             
@@ -982,11 +998,17 @@ def exitonclick(): _SCREEN.exitonclick()
 
                             <button 
                                 onClick={handleGoogle}
-                                disabled={loading}
+                                disabled={!!loadingAction}
                                 className="w-full flex items-center justify-center gap-3 py-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg transition h-12"
                             >
-                                <img src="/assets/google.webp" alt="Google Icon" className="w-5 h-5" />
-                                <span>Continue with Google</span>
+                                {loadingAction === 'google' ? (
+                                    <i className="fas fa-spinner fa-spin"></i>
+                                ) : (
+                                    <>
+                                        <img src="/assets/google.webp" alt="Google Icon" className="w-5 h-5" />
+                                        <span>Continue with Google</span>
+                                    </>
+                                )}
                             </button>
 
                             <button 
@@ -1539,57 +1561,16 @@ def exitonclick(): _SCREEN.exitonclick()
             }
         };
 
-        const OutputBlock = ({ output, isError, images, html }) => {
-            if (!output && (!images || images.length === 0) && !html) return null;
-
-            const renderRow = (content, onCopy, isError = false) => (
-                <div className="flex gap-4 mt-2 group items-start">
-                    {/* Gutter: Copy Button */}
-                    <div className="flex-shrink-0 w-8 flex justify-center pt-1">
-                       {!isError && onCopy && <CopyButton onClick={onCopy} />}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-grow min-w-0 overflow-hidden">
-                        {content}
-                    </div>
+        const CellRow = ({ gutter, content, className = "" }) => (
+            <div className={`flex gap-4 items-start ${className}`}>
+                <div className="flex-shrink-0 w-8 flex justify-center pt-1">
+                    {gutter}
                 </div>
-            );
-
-            return (
-                <div className="mt-2 space-y-0">
-                    {output && renderRow(
-                        <div className={`p-3 font-mono text-sm whitespace-pre-wrap rounded-md border-l-4 ${
-                            isError
-                            ? 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-500'
-                            : 'bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-gray-400 dark:border-gray-600'
-                        }`}>
-                            {output}
-                        </div>,
-                        isError ? null : () => copyToClipboard('text', output),
-                        isError
-                    )}
-
-                    {images && images.map((imgSrc, i) => (
-                        <React.Fragment key={i}>
-                            {renderRow(
-                                <div className="overflow-auto bg-white dark:bg-gray-800 p-2 rounded border border-gray-200 dark:border-gray-700 text-center">
-                                    <img src={`data:image/png;base64,${imgSrc}`} alt="Plot" className="max-w-full h-auto mx-auto" />
-                                </div>,
-                                () => copyToClipboard('image', imgSrc)
-                            )}
-                        </React.Fragment>
-                    ))}
-
-                    {html && renderRow(
-                        <div className="overflow-x-auto bg-white dark:bg-gray-800 p-4 rounded border border-gray-200 dark:border-gray-700">
-                            <div dangerouslySetInnerHTML={{ __html: html }} className="prose dark:prose-invert max-w-none text-sm" />
-                        </div>,
-                        () => copyToClipboard('html', html)
-                    )}
+                <div className="flex-grow min-w-0 overflow-hidden">
+                    {content}
                 </div>
-            );
-        };
+            </div>
+        );
 
         const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave }) => {
             const textareaRef = useRef(null);
@@ -1597,7 +1578,7 @@ def exitonclick(): _SCREEN.exitonclick()
             const [codeCollapsed, setCodeCollapsed] = useState(false);
             const [outputCollapsed, setOutputCollapsed] = useState(false);
 
-            // Auto-resize for markdown cells (CodeEditor handles its own)
+            // Auto-resize for markdown cells
             useEffect(() => {
                 if (textareaRef.current && cell.type === 'markdown') {
                     textareaRef.current.style.height = 'auto';
@@ -1606,6 +1587,8 @@ def exitonclick(): _SCREEN.exitonclick()
             }, [cell.content, cell.type]);
 
             const isInputActive = inputRequest && inputRequest.cellId === cell.id;
+            const hasOutput = (cell.output || cell.error || (cell.images && cell.images.length) || cell.html);
+            const isError = !!cell.error;
 
             return (
                 <div 
@@ -1644,10 +1627,24 @@ def exitonclick(): _SCREEN.exitonclick()
                     </div>
 
                     <div className="p-4">
-                        <div className="flex gap-4">
-                            {/* Run Button Gutter */}
-                            {cell.type === 'code' && (
-                                <div className="flex-shrink-0 pt-1">
+                        {/* Markdown Cell */}
+                        {cell.type !== 'code' && (
+                            <textarea
+                                ref={textareaRef}
+                                value={cell.content}
+                                onChange={(e) => updateCell(cell.id, { content: e.target.value })}
+                                onBlur={triggerSave}
+                                placeholder='# Write markdown notes here...'
+                                className="w-full bg-transparent resize-none focus:outline-none font-sans text-sm leading-relaxed text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600"
+                                spellCheck={false}
+                                rows={1}
+                            />
+                        )}
+
+                        {/* Code Cell - Editor Row */}
+                        {cell.type === 'code' && (
+                            <CellRow
+                                gutter={
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); runCell(cell.id); }}
                                         disabled={!isRuntimeReady || cell.isRunning}
@@ -1660,103 +1657,122 @@ def exitonclick(): _SCREEN.exitonclick()
                                     >
                                         {cell.isRunning ? <SimpleIcon name="Loader2" className="h-4 w-4 spinner" /> : <SimpleIcon name="Play" className="h-4 w-4 ml-0.5" />}
                                     </button>
-                                </div>
-                            )}
+                                }
+                                content={
+                                    <div className={codeCollapsed ? 'hidden' : 'block'}>
+                                        <CodeEditor
+                                            value={cell.content}
+                                            onChange={(newContent) => updateCell(cell.id, { content: newContent })}
+                                            onRun={() => runCell(cell.id)}
+                                            onRunAndAdvance={async () => {
+                                                await runCell(cell.id);
+                                                focusNextCell();
+                                            }}
+                                            onBlur={triggerSave}
+                                            className="w-full text-gray-800 dark:text-gray-200"
+                                            placeholder='print("Hello Python")'
+                                        />
+                                    </div>
+                                }
+                            />
+                        )}
 
-                            {/* Editor */}
-                            <div className="flex-grow min-w-0">
-                                {cell.type === 'code' ? (
-                                    <>
-                                        <div className={codeCollapsed ? 'hidden' : 'block'}>
-                                            <CodeEditor
-                                                value={cell.content}
-                                                onChange={(newContent) => updateCell(cell.id, { content: newContent })}
-                                                onRun={() => runCell(cell.id)}
-                                                onRunAndAdvance={async () => {
-                                                    await runCell(cell.id);
-                                                    focusNextCell();
-                                                }}
-                                                onBlur={triggerSave}
-                                                className="w-full text-gray-800 dark:text-gray-200"
-                                                placeholder='print("Hello Python")'
-                                            />
-                                        </div>
-                                    </>
-                                ) : (
-                                    <textarea
-                                        ref={textareaRef}
-                                        value={cell.content}
-                                        onChange={(e) => updateCell(cell.id, { content: e.target.value })}
-                                        onBlur={triggerSave}
-                                        placeholder='# Write markdown notes here...'
-                                        className="w-full bg-transparent resize-none focus:outline-none font-sans text-sm leading-relaxed text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600"
-                                        spellCheck={false}
-                                        rows={1}
-                                    />
+                        {/* Input Request Row */}
+                        {cell.type === 'code' && isInputActive && (
+                            <div className="mt-2 ml-12 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md animate-in fade-in slide-in-from-top-1">
+                                {inputRequest.title && (
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">{inputRequest.title}</h4>
                                 )}
-                                
-                                {cell.type === 'code' && (
-                                    <div className="mt-2">
-                                        {(cell.output || cell.error || (cell.images && cell.images.length) || cell.html) && (
-                                            <div className="flex gap-4 items-start">
-                                                {/* Output Toggle Gutter */}
-                                                <div className="flex-shrink-0 w-8 flex justify-center pt-1">
-                                                    <button
-                                                        onClick={() => setOutputCollapsed(!outputCollapsed)}
-                                                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                                                        title={outputCollapsed ? "Show Output" : "Hide Output"}
-                                                    >
-                                                        <SimpleIcon name={outputCollapsed ? "EyeOff" : "Eye"} className="h-4 w-4" />
-                                                    </button>
-                                                </div>
+                                <p className="text-sm font-medium mb-2 text-gray-800 dark:text-gray-200">{inputRequest.prompt}</p>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                submitInput(inputValue);
+                                                setInputValue("");
+                                            }
+                                        }}
+                                        className="flex-grow px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                        placeholder="Enter value..."
+                                        autoFocus
+                                    />
+                                    <Button size="sm" onClick={() => { submitInput(inputValue); setInputValue(""); }}>
+                                        Submit
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
 
-                                                <div className="flex-grow min-w-0">
-                                                    {!outputCollapsed ? (
-                                                        <OutputBlock
-                                                            output={cell.error || cell.output}
-                                                            isError={!!cell.error}
-                                                            images={cell.images}
-                                                            html={cell.html}
-                                                        />
-                                                    ) : (
-                                                        <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">
-                                                            Output hidden
-                                                        </div>
-                                                    )}
-                                                </div>
+                        {/* Output Section */}
+                        {cell.type === 'code' && hasOutput && (
+                            <div className="mt-2">
+                                {/* Toggle Row */}
+                                <CellRow
+                                    gutter={
+                                        <button
+                                            onClick={() => setOutputCollapsed(!outputCollapsed)}
+                                            className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                            title={outputCollapsed ? "Show Output" : "Hide Output"}
+                                        >
+                                            <SimpleIcon name={outputCollapsed ? "EyeOff" : "Eye"} className="h-4 w-4" />
+                                        </button>
+                                    }
+                                    content={
+                                        outputCollapsed ? (
+                                            <div className="text-xs text-gray-400 dark:text-gray-500 italic py-2 cursor-pointer select-none" onClick={() => setOutputCollapsed(false)}>
+                                                Output hidden
                                             </div>
+                                        ) : null
+                                    }
+                                />
+
+                                {/* Content Rows */}
+                                {!outputCollapsed && (
+                                    <div className="space-y-2">
+                                        {(cell.error || cell.output) && (
+                                            <CellRow
+                                                gutter={<CopyButton onClick={() => copyToClipboard('text', cell.error || cell.output)} />}
+                                                content={
+                                                    <div className={`p-3 font-mono text-sm whitespace-pre-wrap rounded-r-md border-l-4 pl-4 ${
+                                                        isError
+                                                        ? 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-500'
+                                                        : 'bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-green-500'
+                                                    }`}>
+                                                        {cell.error || cell.output}
+                                                    </div>
+                                                }
+                                            />
                                         )}
-                                        {isInputActive && (
-                                            <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md animate-in fade-in slide-in-from-top-1">
-                                                {inputRequest.title && (
-                                                    <h4 className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">{inputRequest.title}</h4>
-                                                )}
-                                                <p className="text-sm font-medium mb-2 text-gray-800 dark:text-gray-200">{inputRequest.prompt}</p>
-                                                <div className="flex gap-2">
-                                                    <input 
-                                                        type="text" 
-                                                        value={inputValue}
-                                                        onChange={(e) => setInputValue(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') {
-                                                                submitInput(inputValue);
-                                                                setInputValue("");
-                                                            }
-                                                        }}
-                                                        className="flex-grow px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                                        placeholder="Enter value..."
-                                                        autoFocus
-                                                    />
-                                                    <Button size="sm" onClick={() => { submitInput(inputValue); setInputValue(""); }}>
-                                                        Submit
-                                                    </Button>
-                                                </div>
-                                            </div>
+
+                                        {cell.images && cell.images.map((imgSrc, i) => (
+                                            <CellRow
+                                                key={`img-${i}`}
+                                                gutter={<CopyButton onClick={() => copyToClipboard('image', imgSrc)} />}
+                                                content={
+                                                    <div className="overflow-auto bg-white dark:bg-gray-800 p-2 rounded border-l-4 border-green-500 border-t border-r border-b border-gray-200 dark:border-gray-700 text-center pl-4">
+                                                        <img src={`data:image/png;base64,${imgSrc}`} alt="Plot" className="max-w-full h-auto mx-auto" />
+                                                    </div>
+                                                }
+                                            />
+                                        ))}
+
+                                        {cell.html && (
+                                            <CellRow
+                                                gutter={<CopyButton onClick={() => copyToClipboard('html', cell.html)} />}
+                                                content={
+                                                    <div className="overflow-x-auto bg-white dark:bg-gray-800 p-4 rounded border-l-4 border-green-500 border-t border-r border-b border-gray-200 dark:border-gray-700 pl-4">
+                                                        <div dangerouslySetInnerHTML={{ __html: cell.html }} className="prose dark:prose-invert max-w-none text-sm" />
+                                                    </div>
+                                                }
+                                            />
                                         )}
                                     </div>
                                 )}
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             );
@@ -2053,12 +2069,17 @@ try:
     sys.modules['turtle'] = pynotebook_turtle
 except:
     pass
+
 import io
 import ast
 import builtins
 import matplotlib.pyplot as plt
 import pandas as pd
 from js import window
+
+# Fix: Reset turtle queue to remove any 'create_turtle' events triggered by import side-effects
+if hasattr(window, "resetTurtleQueue"):
+    window.resetTurtleQueue()
 
 ${themeSetup}
 
@@ -2187,7 +2208,7 @@ images = []
 if last_result is not None:
     if isinstance(last_result, pd.DataFrame):
         res_type = "dataframe"
-        html_out = last_result.to_html(classes='min-w-full text-sm text-left border-collapse')
+        html_out = last_result.to_html(classes='min-w-full text-sm text-left border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700')
     else:
         # Append other results to stdout (mimicking REPL behavior)
         current_stdout = sys.stdout.getvalue()
