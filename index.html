@@ -445,6 +445,7 @@
             Sun: <g><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></g>,
             Moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
             Download: <g><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></g>,
+            Upload: <g><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></g>,
             Menu: <g><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></g>,
             LogOut: <g><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></g>,
             Copy: <g><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></g>,
@@ -1542,29 +1543,101 @@ stdout_val = sys.stdout.getvalue()
                  // Visual feedback could be added here
             };
 
-            const exportNotebook = () => {
-                let pythonScript = "# Exported from PyNotebook\n\n";
-                cells.forEach(cell => {
-                    if (cell.type === 'markdown') {
-                        // Comment out markdown lines
-                        pythonScript += cell.content.split('\n').map(line => `# ${line}`).join('\n');
-                        pythonScript += "\n\n";
-                    } else {
-                        pythonScript += `# Cell ${cell.id}\n`;
-                        pythonScript += cell.content;
-                        pythonScript += "\n\n";
-                    }
-                });
+            const backupNotebook = () => {
+                const notebookData = {
+                    metadata: {
+                        kernelspec: {
+                            display_name: "Python 3",
+                            language: "python",
+                            name: "python3"
+                        },
+                        language_info: {
+                            codemirror_mode: {
+                                name: "ipython",
+                                version: 3
+                            },
+                            file_extension: ".py",
+                            mimetype: "text/x-python",
+                            name: "python",
+                            nbconvert_exporter: "python",
+                            pygments_lexer: "ipython3",
+                            version: "3.8"
+                        }
+                    },
+                    nbformat: 4,
+                    nbformat_minor: 5,
+                    cells: cells.map(cell => ({
+                        cell_type: cell.type,
+                        metadata: {},
+                        source: cell.content.split('\n').map((line, i, arr) => i === arr.length - 1 ? line : line + '\n'),
+                        ...(cell.type === 'code' ? {
+                            execution_count: null,
+                            outputs: []
+                        } : {})
+                    }))
+                };
 
-                const blob = new Blob([pythonScript], { type: 'text/x-python' });
+                const blob = new Blob([JSON.stringify(notebookData, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'notebook.py';
+                a.download = 'notebook.ipynb';
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
+            };
+
+            const restoreNotebook = () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.ipynb,.json';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        try {
+                            const content = event.target.result;
+                            const data = JSON.parse(content);
+
+                            if (!data.cells || !Array.isArray(data.cells)) {
+                                alert("Invalid notebook file format.");
+                                return;
+                            }
+
+                            const newCells = data.cells.map((cell, index) => {
+                                let cellContent = "";
+                                if (Array.isArray(cell.source)) {
+                                    cellContent = cell.source.join("");
+                                } else if (typeof cell.source === "string") {
+                                    cellContent = cell.source;
+                                }
+
+                                return {
+                                    id: Date.now().toString() + index, // Generate unique IDs
+                                    type: cell.cell_type === "markdown" ? "markdown" : "code",
+                                    content: cellContent,
+                                    output: "",
+                                    error: null,
+                                    isRunning: false,
+                                    images: [],
+                                    html: null
+                                };
+                            });
+
+                            if (newCells.length > 0) {
+                                setCells(newCells);
+                            }
+                        } catch (err) {
+                            console.error("Failed to parse notebook:", err);
+                            alert("Failed to read file: " + err.message);
+                        }
+                    };
+                    reader.readAsText(file);
+                };
+                input.click();
             };
 
             // --- Render Logic ---
@@ -1651,8 +1724,11 @@ stdout_val = sys.stdout.getvalue()
                                 title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                             />
                             <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
-                            <Button variant="secondary" size="sm" icon="Download" onClick={exportNotebook}>
-                                Export .py
+                            <Button variant="secondary" size="sm" icon="Download" onClick={backupNotebook}>
+                                Backup
+                            </Button>
+                            <Button variant="secondary" size="sm" icon="Upload" onClick={restoreNotebook}>
+                                Restore
                             </Button>
                             <Button variant="run" size="sm" icon="Play" onClick={runAll} disabled={isLoading || !!loadError}>
                                 Run All
@@ -1689,8 +1765,11 @@ stdout_val = sys.stdout.getvalue()
                     {isMenuOpen && (
                         <div className="fixed top-16 left-0 right-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-40 p-4 shadow-lg lg:hidden">
                             <div className="grid grid-cols-2 gap-3 mb-4">
-                                <Button variant="secondary" size="md" icon="Download" onClick={() => { exportNotebook(); setIsMenuOpen(false); }}>
-                                    Export .py
+                                <Button variant="secondary" size="md" icon="Download" onClick={() => { backupNotebook(); setIsMenuOpen(false); }}>
+                                    Backup
+                                </Button>
+                                <Button variant="secondary" size="md" icon="Upload" onClick={() => { restoreNotebook(); setIsMenuOpen(false); }}>
+                                    Restore
                                 </Button>
                                 <Button variant="run" size="md" icon="Play" onClick={() => { runAll(); setIsMenuOpen(false); }} disabled={isLoading || !!loadError}>
                                     Run All
