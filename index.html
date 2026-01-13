@@ -449,7 +449,9 @@
             Menu: <g><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></g>,
             LogOut: <g><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></g>,
             Copy: <g><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></g>,
-            Check: <polyline points="20 6 9 17 4 12" />
+            Check: <polyline points="20 6 9 17 4 12" />,
+            Eye: <g><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></g>,
+            EyeOff: <g><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></g>
         };
 
         const SimpleIcon = ({ name, className }) => {
@@ -458,6 +460,254 @@
         };
 
         // --- Pyodide Loader Helper ---
+        const TURTLE_SHIM = `
+import math
+import sys
+from js import window
+
+def emit(cmd, *args):
+    # Convert args to list for JS
+    # In Pyodide, arguments are passed as *args
+    window.pushTurtleCmd(cmd, list(args))
+
+class TurtleScreen:
+    def __init__(self):
+        self._bgcolor = "white"
+
+    def bgcolor(self, color=None):
+        if color is not None:
+            self._bgcolor = color
+            emit("bgcolor", color)
+        return self._bgcolor
+
+    def clear(self):
+        emit("clear_screen")
+
+    def setup(self, width=0.5, height=0.75, startx=None, starty=None):
+        pass
+
+    def bye(self):
+        emit("bye")
+
+_SCREEN = TurtleScreen()
+
+def Screen():
+    return _SCREEN
+
+class Turtle:
+    def __init__(self):
+        self._x = 0.0
+        self._y = 0.0
+        self._angle = 0.0 # Degrees. 0 = East
+        self._pen_down = True
+        self._pencolor = "black"
+        self._fillcolor = "black"
+        self._pensize = 1
+        self._speed = 6
+        self._visible = True
+        self._is_filling = False
+        emit("create_turtle")
+
+    def forward(self, distance):
+        rad = math.radians(self._angle)
+        self._x += distance * math.cos(rad)
+        self._y += distance * math.sin(rad)
+        emit("forward", distance)
+
+    def fd(self, distance): self.forward(distance)
+
+    def backward(self, distance):
+        self.forward(-distance)
+
+    def bk(self, distance): self.forward(-distance)
+    def back(self, distance): self.forward(-distance)
+
+    def right(self, angle):
+        self._angle -= angle
+        emit("right", angle)
+
+    def rt(self, angle): self.right(angle)
+
+    def left(self, angle):
+        self._angle += angle
+        emit("left", angle)
+
+    def lt(self, angle): self.left(angle)
+
+    def goto(self, x, y=None):
+        if y is None: x, y = x
+        self._x = float(x)
+        self._y = float(y)
+        emit("goto", self._x, self._y)
+
+    def setpos(self, x, y=None): self.goto(x, y)
+    def setposition(self, x, y=None): self.goto(x, y)
+
+    def setx(self, x): self.goto(x, self._y)
+    def sety(self, y): self.goto(self._x, y)
+
+    def home(self):
+        self.goto(0, 0)
+        self.setheading(0)
+
+    def circle(self, radius, extent=None, steps=None):
+        if extent is None: extent = 360
+        if steps is None: steps = int(max(3, min(abs(radius)*3.14/math.sin(math.pi/3), abs(extent)/2)))
+
+        frac = abs(extent) / 360
+        steps = steps or int(min(11+abs(radius)/6.0, 59.0) * frac)
+        w = extent / steps
+        w2 = 0.5 * w
+        l = 2.0 * radius * math.sin(math.radians(w2))
+        if radius < 0:
+            l, w, w2 = -l, -w, -w2
+
+        for i in range(steps):
+            self.left(w2)
+            self.forward(l)
+            self.left(w2)
+
+    def speed(self, s):
+        self._speed = s
+        emit("speed", s)
+
+    def penup(self):
+        self._pen_down = False
+        emit("penup")
+    def pu(self): self.penup()
+    def up(self): self.penup()
+
+    def pendown(self):
+        self._pen_down = True
+        emit("pendown")
+    def pd(self): self.pendown()
+    def down(self): self.pendown()
+
+    def isdown(self): return self._pen_down
+
+    def width(self, w):
+        self._pensize = w
+        emit("pensize", w)
+    def pensize(self, w=None):
+        if w is None: return self._pensize
+        self.width(w)
+
+    def color(self, *args):
+        if len(args) == 0: return self._pencolor, self._fillcolor
+        pcolor = args[0]
+        fcolor = args[0]
+        if len(args) == 2:
+            fcolor = args[1]
+        self._pencolor = pcolor
+        self._fillcolor = fcolor
+        emit("color", pcolor, fcolor)
+
+    def pencolor(self, *args):
+        if len(args) == 0: return self._pencolor
+        self._pencolor = args[0]
+        emit("pencolor", self._pencolor)
+
+    def fillcolor(self, *args):
+        if len(args) == 0: return self._fillcolor
+        self._fillcolor = args[0]
+        emit("fillcolor", self._fillcolor)
+
+    def begin_fill(self):
+        self._is_filling = True
+        emit("begin_fill")
+
+    def end_fill(self):
+        self._is_filling = False
+        emit("end_fill")
+
+    def write(self, arg, move=False, align="left", font=("Arial", 8, "normal")):
+        emit("write", str(arg), move, align, font)
+
+    def showturtle(self):
+        self._visible = True
+        emit("showturtle")
+    def st(self): self.showturtle()
+
+    def hideturtle(self):
+        self._visible = False
+        emit("hideturtle")
+    def ht(self): self.hideturtle()
+
+    def isvisible(self): return self._visible
+
+    def setheading(self, to_angle):
+        diff = to_angle - self._angle
+        self.left(diff)
+    def seth(self, to_angle): self.setheading(to_angle)
+
+    def heading(self): return abs(self._angle % 360)
+
+    def xcor(self): return self._x
+    def ycor(self): return self._y
+    def position(self): return (self._x, self._y)
+    def pos(self): return (self._x, self._y)
+
+    def clear(self):
+        emit("clear")
+
+    def reset(self):
+        self._x = 0; self._y = 0; self._angle = 0
+        self._pen_down = True; self._pencolor="black"; self._fillcolor="black"
+        emit("reset")
+
+_default_turtle = Turtle()
+
+def forward(distance): _default_turtle.forward(distance)
+def fd(distance): _default_turtle.fd(distance)
+def backward(distance): _default_turtle.backward(distance)
+def bk(distance): _default_turtle.bk(distance)
+def back(distance): _default_turtle.back(distance)
+def right(angle): _default_turtle.right(angle)
+def rt(angle): _default_turtle.rt(angle)
+def left(angle): _default_turtle.left(angle)
+def lt(angle): _default_turtle.lt(angle)
+def goto(x, y=None): _default_turtle.goto(x, y)
+def setpos(x, y=None): _default_turtle.setpos(x, y)
+def setposition(x, y=None): _default_turtle.setposition(x, y)
+def setx(x): _default_turtle.setx(x)
+def sety(y): _default_turtle.sety(y)
+def home(): _default_turtle.home()
+def circle(radius, extent=None, steps=None): _default_turtle.circle(radius, extent, steps)
+def speed(s): _default_turtle.speed(s)
+def penup(): _default_turtle.penup()
+def pu(): _default_turtle.pu()
+def up(): _default_turtle.up()
+def pendown(): _default_turtle.pendown()
+def pd(): _default_turtle.pd()
+def down(): _default_turtle.down()
+def isdown(): return _default_turtle.isdown()
+def width(w): _default_turtle.width(w)
+def pensize(w=None): return _default_turtle.pensize(w)
+def color(*args): _default_turtle.color(*args)
+def pencolor(*args): return _default_turtle.pencolor(*args)
+def fillcolor(*args): return _default_turtle.fillcolor(*args)
+def begin_fill(): _default_turtle.begin_fill()
+def end_fill(): _default_turtle.end_fill()
+def write(arg, move=False, align="left", font=("Arial", 8, "normal")): _default_turtle.write(arg, move, align, font)
+def showturtle(): _default_turtle.showturtle()
+def st(): _default_turtle.st()
+def hideturtle(): _default_turtle.hideturtle()
+def ht(): _default_turtle.ht()
+def isvisible(): return _default_turtle.isvisible()
+def setheading(to_angle): _default_turtle.setheading(to_angle)
+def seth(to_angle): _default_turtle.seth(to_angle)
+def heading(): return _default_turtle.heading()
+def xcor(): return _default_turtle.xcor()
+def ycor(): return _default_turtle.ycor()
+def position(): return _default_turtle.position()
+def pos(): return _default_turtle.pos()
+def done(): pass
+def mainloop(): pass
+def bgcolor(c): _SCREEN.bgcolor(c)
+def clear(): _default_turtle.clear()
+def reset(): _default_turtle.reset()
+`;
+
         const usePyodide = () => {
             const [pyodide, setPyodide] = useState(null);
             const [isLoading, setIsLoading] = useState(true);
@@ -475,6 +725,17 @@
                     return;
                 }
 
+                // Initialize Turtle Queue globally
+                window.turtleQueue = [];
+                window.resetTurtleQueue = () => { window.turtleQueue = []; };
+                window.pushTurtleCmd = (cmd, args) => {
+                    let jsArgs = args;
+                    if (args && typeof args.toJs === 'function') {
+                        jsArgs = args.toJs();
+                    }
+                    window.turtleQueue.push({ cmd, args: jsArgs });
+                };
+
                 const loadPyodideScript = async () => {
                     try {
                         if (window.loadPyodide) {
@@ -486,7 +747,10 @@
                             setStatus("Loading Numpy & Pandas (Heavy)...");
                             await py.loadPackage("micropip");
                             await py.loadPackage(["numpy", "pandas", "matplotlib"]);
-                            
+
+                            // Inject Turtle Shim
+                            py.FS.writeFile("pynotebook_turtle.py", TURTLE_SHIM);
+
                             if (isMounted) {
                                 setPyodide(py);
                                 setIsLoading(false);
@@ -509,7 +773,10 @@
                                 setStatus("Loading Numpy & Pandas...");
                                 await py.loadPackage("micropip");
                                 await py.loadPackage(["numpy", "pandas", "matplotlib"]);
-                                
+
+                                // Inject Turtle Shim
+                                py.FS.writeFile("pynotebook_turtle.py", TURTLE_SHIM);
+
                                 if (isMounted) {
                                     setPyodide(py);
                                     setIsLoading(false);
@@ -710,6 +977,250 @@
         };
 
         // --- Components ---
+
+        const TurtleModal = ({ isOpen, onClose }) => {
+            const canvasRef = useRef(null);
+            const [isPlaying, setIsPlaying] = useState(false);
+
+            useEffect(() => {
+                if (!isOpen || !canvasRef.current) return;
+
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                const queue = window.turtleQueue || [];
+
+                if (queue.length === 0) return;
+
+                setIsPlaying(true);
+
+                // Canvas Setup
+                const width = canvas.width = 600;
+                const height = canvas.height = 400;
+
+                // State
+                let turtle = {
+                    x: 0,
+                    y: 0,
+                    angle: 0, // 0 = East
+                    penDown: true,
+                    penColor: "black",
+                    fillColor: "black",
+                    penSize: 1,
+                    isVisible: true,
+                    speed: 6 // 0=fastest, 1=slowest, 10=fast
+                };
+
+                let cmdIndex = 0;
+                let requestID;
+
+                // Helper to map turtle coords to canvas coords
+                // Center (0,0) is at (width/2, height/2)
+                // Y is inverted (Turtle Y up, Canvas Y down)
+                const toCanvas = (x, y) => ({
+                    x: x + width / 2,
+                    y: height / 2 - y
+                });
+
+                // Initial Draw
+                ctx.fillStyle = "white"; // Bgcolor default
+                ctx.fillRect(0, 0, width, height);
+                ctx.lineCap = "round";
+                ctx.lineJoin = "round";
+
+                const drawTurtle = () => {
+                    if (!turtle.isVisible) return;
+                    const { x, y } = toCanvas(turtle.x, turtle.y);
+
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(-turtle.angle * Math.PI / 180); // Rotate counter-clockwise for canvas
+
+                    // Draw Triangle Cursor
+                    ctx.beginPath();
+                    ctx.moveTo(10, 0);
+                    ctx.lineTo(-5, 5);
+                    ctx.lineTo(-5, -5);
+                    ctx.closePath();
+
+                    ctx.fillStyle = turtle.penColor;
+                    ctx.fill();
+                    ctx.restore();
+                };
+
+                // We need to keep a persistent image of the drawing,
+                // because we clear/redraw for the turtle cursor animation.
+                // Or we can use two layers? Canvas API is single layer.
+                // Solution: Use `getImageData` / `putImageData` to save "background" before drawing turtle?
+                // Or just don't clear?
+                // If we don't clear, the turtle leaves a trail of itself.
+                // Standard approach: Save the "drawing" canvas state, restore it, then draw turtle.
+                // Efficient approach: Create an offscreen canvas for the drawing.
+                const drawingCanvas = document.createElement('canvas');
+                drawingCanvas.width = width;
+                drawingCanvas.height = height;
+                const dCtx = drawingCanvas.getContext('2d');
+                // Init drawing canvas background
+                dCtx.fillStyle = "white";
+                dCtx.fillRect(0, 0, width, height);
+
+                const renderFrame = () => {
+                    // Calculate how many commands to process per frame based on speed
+                    // Speed 0: All at once.
+                    // Speed 1: Slow.
+                    // Speed 10: Fast.
+                    let batchSize = 1;
+                    if (turtle.speed === 0) batchSize = 10000;
+                    else batchSize = turtle.speed;
+
+                    for (let i = 0; i < batchSize; i++) {
+                        if (cmdIndex >= queue.length) {
+                            setIsPlaying(false);
+                            // Final Draw
+                            ctx.drawImage(drawingCanvas, 0, 0);
+                            drawTurtle();
+                            return;
+                        }
+
+                        const { cmd, args } = queue[cmdIndex++];
+
+                        // Execute Command on dCtx (Drawing Layer)
+                        switch (cmd) {
+                            case "forward": {
+                                const dist = args[0];
+                                const rad = turtle.angle * Math.PI / 180;
+                                const dx = dist * Math.cos(rad);
+                                const dy = dist * Math.sin(rad);
+                                const newX = turtle.x + dx;
+                                const newY = turtle.y + dy;
+
+                                if (turtle.penDown) {
+                                    const start = toCanvas(turtle.x, turtle.y);
+                                    const end = toCanvas(newX, newY);
+                                    dCtx.beginPath();
+                                    dCtx.moveTo(start.x, start.y);
+                                    dCtx.lineTo(end.x, end.y);
+                                    dCtx.strokeStyle = turtle.penColor;
+                                    dCtx.lineWidth = turtle.penSize;
+                                    dCtx.stroke();
+                                }
+                                turtle.x = newX;
+                                turtle.y = newY;
+                                break;
+                            }
+                            case "right":
+                                turtle.angle -= args[0];
+                                break;
+                            case "left":
+                                turtle.angle += args[0];
+                                break;
+                            case "goto":
+                                turtle.x = args[0];
+                                turtle.y = args[1];
+                                break;
+                            case "penup":
+                                turtle.penDown = false;
+                                break;
+                            case "pendown":
+                                turtle.penDown = true;
+                                break;
+                            case "color":
+                                turtle.penColor = args[0];
+                                turtle.fillColor = args[1];
+                                break;
+                            case "pencolor":
+                                turtle.penColor = args[0];
+                                break;
+                            case "fillcolor":
+                                turtle.fillColor = args[0];
+                                break;
+                            case "pensize":
+                                turtle.penSize = args[0];
+                                break;
+                            case "bgcolor":
+                                dCtx.fillStyle = args[0];
+                                dCtx.fillRect(0, 0, width, height);
+                                break;
+                            case "speed":
+                                turtle.speed = args[0];
+                                break;
+                            case "reset":
+                            case "clear":
+                                dCtx.fillStyle = "white"; // Or current bgcolor?
+                                dCtx.fillRect(0, 0, width, height);
+                                turtle.x = 0; turtle.y = 0; turtle.angle = 0;
+                                break;
+                            case "hideturtle":
+                                turtle.isVisible = false;
+                                break;
+                            case "showturtle":
+                                turtle.isVisible = true;
+                                break;
+                            // Add more cases as needed (write, circle, begin_fill, etc)
+                            default:
+                                break;
+                        }
+                    }
+
+                    // Render to Main Canvas
+                    ctx.clearRect(0, 0, width, height);
+                    ctx.drawImage(drawingCanvas, 0, 0);
+                    drawTurtle();
+
+                    requestID = requestAnimationFrame(renderFrame);
+                };
+
+                renderFrame();
+
+                return () => cancelAnimationFrame(requestID);
+            }, [isOpen]);
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl overflow-hidden max-w-2xl w-full border border-gray-200 dark:border-gray-700 flex flex-col">
+                        <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                            <h3 className="font-bold text-gray-900 dark:text-gray-100 flex items-center">
+                                <SimpleIcon name="Play" className="mr-2 text-green-600" />
+                                Turtle Graphics
+                            </h3>
+                            <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                                <SimpleIcon name="XCircle" className="h-6 w-6" />
+                            </button>
+                        </div>
+                        <div className="p-4 bg-gray-100 dark:bg-gray-950 flex justify-center overflow-auto">
+                            <canvas ref={canvasRef} className="bg-white shadow-sm border border-gray-300 dark:border-gray-700 max-w-full" style={{ maxWidth: '100%', maxHeight: '60vh' }}></canvas>
+                        </div>
+                        <div className="p-3 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 text-xs text-center text-gray-500">
+                            {isPlaying ? "Drawing..." : "Finished"}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const UserAvatar = ({ user, isGuest }) => {
+            let content;
+            let title;
+
+            if (isGuest || !user) {
+                content = <i className="fas fa-user text-xs"></i>;
+                title = "Guest Session";
+            } else {
+                const letter = (user.email && user.email[0]) ? user.email[0].toUpperCase() : "?";
+                content = <span>{letter}</span>;
+                title = user.email;
+            }
+
+            return (
+                <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-gray-700 via-gray-800 to-black text-white font-bold shadow-md border border-gray-600 select-none"
+                    title={title}
+                >
+                    {content}
+                </div>
+            );
+        };
 
         const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onBlur }) => {
             const editorRef = useRef(null);
@@ -969,6 +1480,8 @@
         const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave }) => {
             const textareaRef = useRef(null);
             const [inputValue, setInputValue] = useState("");
+            const [codeCollapsed, setCodeCollapsed] = useState(false);
+            const [outputCollapsed, setOutputCollapsed] = useState(false);
 
             // Auto-resize for markdown cells (CodeEditor handles its own)
             useEffect(() => {
@@ -990,7 +1503,11 @@
                     onClick={() => setFocusedId(cell.id)}
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-t-lg border-b border-gray-100 dark:border-gray-800">
+                    <div
+                        className={`flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-t-lg border-b border-gray-100 dark:border-gray-800 cursor-pointer select-none`}
+                        onClick={(e) => { if(cell.type === 'code') setCodeCollapsed(!codeCollapsed); }}
+                        title={cell.type === 'code' ? "Click to toggle code visibility" : ""}
+                    >
                         <div className="flex items-center space-x-2">
                             <span className="text-xs font-mono text-gray-400 dark:text-gray-500">[{index + 1}]</span>
                             <span className={`text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded-full ${
@@ -1000,6 +1517,9 @@
                             }`}>
                                 {cell.type}
                             </span>
+                            {cell.type === 'code' && codeCollapsed && (
+                                <span className="text-xs text-gray-400 dark:text-gray-500 italic ml-2">(Code Hidden)</span>
+                            )}
                         </div>
                         
                         <div className="flex items-center space-x-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
@@ -1031,18 +1551,22 @@
                             {/* Editor */}
                             <div className="flex-grow min-w-0">
                                 {cell.type === 'code' ? (
-                                    <CodeEditor
-                                        value={cell.content}
-                                        onChange={(newContent) => updateCell(cell.id, { content: newContent })}
-                                        onRun={() => runCell(cell.id)}
-                                        onRunAndAdvance={async () => {
-                                            await runCell(cell.id);
-                                            focusNextCell();
-                                        }}
-                                        onBlur={triggerSave}
-                                        className="w-full text-gray-800 dark:text-gray-200"
-                                        placeholder='print("Hello Python")'
-                                    />
+                                    <>
+                                        <div className={codeCollapsed ? 'hidden' : 'block'}>
+                                            <CodeEditor
+                                                value={cell.content}
+                                                onChange={(newContent) => updateCell(cell.id, { content: newContent })}
+                                                onRun={() => runCell(cell.id)}
+                                                onRunAndAdvance={async () => {
+                                                    await runCell(cell.id);
+                                                    focusNextCell();
+                                                }}
+                                                onBlur={triggerSave}
+                                                className="w-full text-gray-800 dark:text-gray-200"
+                                                placeholder='print("Hello Python")'
+                                            />
+                                        </div>
+                                    </>
                                 ) : (
                                     <textarea
                                         ref={textareaRef}
@@ -1059,12 +1583,33 @@
                                 {cell.type === 'code' && (
                                     <div className="mt-2">
                                         {(cell.output || cell.error || (cell.images && cell.images.length) || cell.html) && (
-                                            <OutputBlock
-                                                output={cell.error || cell.output}
-                                                isError={!!cell.error}
-                                                images={cell.images}
-                                                html={cell.html}
-                                            />
+                                            <div className="flex gap-4 items-start">
+                                                {/* Output Toggle Gutter */}
+                                                <div className="flex-shrink-0 w-8 flex justify-center pt-1">
+                                                    <button
+                                                        onClick={() => setOutputCollapsed(!outputCollapsed)}
+                                                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                                                        title={outputCollapsed ? "Show Output" : "Hide Output"}
+                                                    >
+                                                        <SimpleIcon name={outputCollapsed ? "EyeOff" : "Eye"} className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="flex-grow min-w-0">
+                                                    {!outputCollapsed ? (
+                                                        <OutputBlock
+                                                            output={cell.error || cell.output}
+                                                            isError={!!cell.error}
+                                                            images={cell.images}
+                                                            html={cell.html}
+                                                        />
+                                                    ) : (
+                                                        <div className="text-xs text-gray-400 dark:text-gray-500 italic py-1">
+                                                            Output hidden
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                         )}
                                         {isInputActive && (
                                             <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
@@ -1105,7 +1650,8 @@
             const [focusedId, setFocusedId] = useState(null);
             const [isMenuOpen, setIsMenuOpen] = useState(false);
             const [inputRequest, setInputRequest] = useState(null); // { cellId, prompt, resolve }
-            
+            const [isTurtleOpen, setIsTurtleOpen] = useState(false);
+
             // Auth State
             const [user, setUser] = useState(null);
             const [isGuest, setIsGuest] = useState(false);
@@ -1373,6 +1919,9 @@
 
                 updateCell(id, { isRunning: true, output: '', error: null, images: [], html: null });
 
+                // Reset Turtle Queue
+                if (window.resetTurtleQueue) window.resetTurtleQueue();
+
                 try {
                     // Inject Input Transformer and Async Input Helper
                     // Set Matplotlib style based on current theme
@@ -1380,6 +1929,12 @@
 
                     pyodide.runPython(`
 import sys
+if '.' not in sys.path: sys.path.insert(0, '.')
+try:
+    import pynotebook_turtle
+    sys.modules['turtle'] = pynotebook_turtle
+except:
+    pass
 import io
 import ast
 import builtins
@@ -1515,6 +2070,11 @@ stdout_val = sys.stdout.getvalue()
                         html: outputMap.html
                     });
 
+                    // Check for Turtle Commands
+                    if (window.turtleQueue && window.turtleQueue.length > 0) {
+                        setIsTurtleOpen(true);
+                    }
+
                     return true; // Success
 
                 } catch (err) {
@@ -1640,6 +2200,64 @@ stdout_val = sys.stdout.getvalue()
                 input.click();
             };
 
+            const clearNotebook = () => {
+                if (window.confirm("Are you sure you want to clear all cells? This action cannot be undone unless you have a backup.")) {
+                    setCells([{
+                        id: Date.now().toString(),
+                        type: 'code',
+                        content: '',
+                        output: '',
+                        error: null,
+                        isRunning: false,
+                        images: [],
+                        html: null
+                    }]);
+                }
+            };
+
+            const menuContent = (
+                <div className="flex flex-col py-1">
+                    <button
+                        onClick={() => { runAll(); setIsMenuOpen(false); }}
+                        disabled={isLoading || !!loadError}
+                        className="flex lg:hidden items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left disabled:opacity-50 transition-colors"
+                    >
+                        <SimpleIcon name="Play" className="mr-3 h-4 w-4 text-green-600" />
+                        Run All Cells
+                    </button>
+                    <div className="lg:hidden border-t border-gray-100 dark:border-gray-800 my-1"></div>
+                    <button
+                        onClick={() => { backupNotebook(); setIsMenuOpen(false); }}
+                        className="flex items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
+                    >
+                        <SimpleIcon name="Download" className="mr-3 h-4 w-4" />
+                        Backup (.ipynb)
+                    </button>
+                    <button
+                        onClick={() => { restoreNotebook(); setIsMenuOpen(false); }}
+                        className="flex items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
+                    >
+                        <SimpleIcon name="Upload" className="mr-3 h-4 w-4" />
+                        Restore Backup
+                    </button>
+                    <button
+                        onClick={() => { clearNotebook(); setIsMenuOpen(false); }}
+                        className="flex items-center px-4 py-3 sm:py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-full text-left transition-colors"
+                    >
+                        <SimpleIcon name="Trash2" className="mr-3 h-4 w-4" />
+                        Clear Notebook
+                    </button>
+                    <div className="border-t border-gray-100 dark:border-gray-800 my-1"></div>
+                    <button
+                        onClick={() => { handleLogout(); setIsMenuOpen(false); }}
+                        className="flex items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
+                    >
+                        <SimpleIcon name="LogOut" className="mr-3 h-4 w-4" />
+                        Logout
+                    </button>
+                </div>
+            );
+
             // --- Render Logic ---
             if (isAuthChecking) {
                 return (
@@ -1714,37 +2332,19 @@ stdout_val = sys.stdout.getvalue()
                             </div>
                         </div>
 
-                        {/* Desktop Menu */}
-                        <div className="hidden lg:flex items-center space-x-2">
+                        {/* Right Actions (Theme + Avatar Toggle) */}
+                        <div className="flex items-center space-x-2">
                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                icon={isDark ? "Sun" : "Moon"} 
-                                onClick={toggleTheme} 
-                                title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-                            />
-                            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
-                            <Button variant="secondary" size="sm" icon="Download" onClick={backupNotebook}>
-                                Backup
-                            </Button>
-                            <Button variant="secondary" size="sm" icon="Upload" onClick={restoreNotebook}>
-                                Restore
-                            </Button>
-                            <Button variant="run" size="sm" icon="Play" onClick={runAll} disabled={isLoading || !!loadError}>
+                                variant="run"
+                                size="sm"
+                                icon="Play"
+                                onClick={runAll}
+                                disabled={isLoading || !!loadError}
+                                className="hidden lg:flex mr-2"
+                                title="Run All Cells"
+                            >
                                 Run All
                             </Button>
-                            
-                            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                                    {user ? (user.email || "User") : "Guest"}
-                                </span>
-                                <Button variant="ghost" size="icon" icon="LogOut" onClick={handleLogout} title="Logout" />
-                            </div>
-                        </div>
-
-                        {/* Mobile Menu Button */}
-                        <div className="flex lg:hidden items-center space-x-2">
                              <Button 
                                 variant="ghost" 
                                 size="icon" 
@@ -1752,38 +2352,46 @@ stdout_val = sys.stdout.getvalue()
                                 onClick={toggleTheme} 
                                 title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                             />
-                            <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                icon="Menu" 
-                                onClick={() => setIsMenuOpen(!isMenuOpen)} 
-                            />
+                            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
+
+                            <button
+                                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                className="focus:outline-none transition-opacity hover:opacity-80 rounded-full"
+                                title="User Menu"
+                            >
+                                <UserAvatar user={user} isGuest={!user} />
+                            </button>
                         </div>
                     </header>
 
-                    {/* Mobile Menu Dropdown */}
+                    {/* Menus */}
                     {isMenuOpen && (
-                        <div className="fixed top-16 left-0 right-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-40 p-4 shadow-lg lg:hidden">
-                            <div className="grid grid-cols-2 gap-3 mb-4">
-                                <Button variant="secondary" size="md" icon="Download" onClick={() => { backupNotebook(); setIsMenuOpen(false); }}>
-                                    Backup
-                                </Button>
-                                <Button variant="secondary" size="md" icon="Upload" onClick={() => { restoreNotebook(); setIsMenuOpen(false); }}>
-                                    Restore
-                                </Button>
-                                <Button variant="run" size="md" icon="Play" onClick={() => { runAll(); setIsMenuOpen(false); }} disabled={isLoading || !!loadError}>
-                                    Run All
-                                </Button>
-                            </div>
-                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                                 <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">
-                                    {user ? (user.email || "User") : "Guest"}
-                                </span>
-                                <Button variant="ghost" size="sm" icon="LogOut" onClick={() => { handleLogout(); setIsMenuOpen(false); }}>
-                                    Logout
-                                </Button>
-                            </div>
-                        </div>
+                        <>
+                           {/* Backdrop */}
+                           <div className="fixed inset-0 z-30 bg-black/5 dark:bg-black/20" onClick={() => setIsMenuOpen(false)}></div>
+
+                           {/* Desktop Bubble */}
+                           <div className="hidden lg:block absolute right-4 top-16 mt-2 w-64 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                               <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
+                                    <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Signed in as</div>
+                                    <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={user ? user.email : "Guest Session"}>
+                                        {user ? user.email : "Guest Session"}
+                                    </div>
+                               </div>
+                               {menuContent}
+                           </div>
+
+                           {/* Mobile Slide-down */}
+                           <div className="lg:hidden fixed top-16 left-0 right-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-40 shadow-lg animate-in slide-in-from-top-2 duration-200">
+                                <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 flex items-center gap-3">
+                                    <UserAvatar user={user} isGuest={!user} />
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">
+                                        {user ? user.email : "Guest Session"}
+                                    </span>
+                                </div>
+                               {menuContent}
+                           </div>
+                        </>
                     )}
 
                     <main className="pt-24 px-4 max-w-4xl mx-auto">
@@ -1821,6 +2429,8 @@ stdout_val = sys.stdout.getvalue()
                             <Button variant="secondary" icon="Plus" onClick={() => addCell('code')}>Code</Button>
                             <Button variant="secondary" icon="FileText" onClick={() => addCell('markdown')}>Text</Button>
                         </div>
+
+                        <TurtleModal isOpen={isTurtleOpen} onClose={() => setIsTurtleOpen(false)} />
                     </main>
                 </div>
             );
