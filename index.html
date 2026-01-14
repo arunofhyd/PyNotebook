@@ -2131,8 +2131,11 @@ def exitonclick(): _SCREEN.exitonclick()
                 try {
                     // Set stream callback
                     window.streamOutput = (text) => {
-                        updateCell(id, (prev) => ({
-                            output: (prev.output || "") + text
+                        setCells(prev => prev.map(c => {
+                            if (c.id === id) {
+                                return { ...c, output: (c.output || "") + text };
+                            }
+                            return c;
                         }));
                     };
 
