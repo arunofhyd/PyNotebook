@@ -1612,7 +1612,7 @@ def get_docstring(name):
             );
         };
 
-        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onRunAndInsert, onBlur, showLineNumbers, searchQuery, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown, completionEngine }) => {
+        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onRunAndInsert, onBlur, showLineNumbers, searchQuery, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown, completionEngine, visible }) => {
             const editorRef = useRef(null);
             const cmInstance = useRef(null);
             const [hasError, setHasError] = useState(false);
