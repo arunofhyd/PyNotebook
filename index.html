@@ -1387,7 +1387,7 @@ def exitonclick(): _SCREEN.exitonclick()
             );
         };
 
-        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onBlur, showLineNumbers, searchQuery }) => {
+        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onRunAndInsert, onBlur, showLineNumbers, searchQuery, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown }) => {
             const editorRef = useRef(null);
             const cmInstance = useRef(null);
             const [hasError, setHasError] = useState(false);
@@ -1421,8 +1421,35 @@ def exitonclick(): _SCREEN.exitonclick()
                         "Ctrl-Enter": () => {
                             if (onRun) onRun();
                         },
+                        "Alt-Enter": () => {
+                             if (onRunAndInsert) onRunAndInsert();
+                        },
                         "Tab": (cm) => {
                             cm.replaceSelection("    ", "end");
+                        },
+                        "Ctrl-M": (cm) => {
+                            // Colab Command Mode
+                            const keyHandler = (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const key = e.key.toLowerCase();
+
+                                switch(key) {
+                                    case 'a': if (onInsertAbove) onInsertAbove(); break;
+                                    case 'b': if (onInsertBelow) onInsertBelow(); break;
+                                    case 'd': if (onDelete) onDelete(); break;
+                                    case 'k': if (onMoveUp) onMoveUp(); break;
+                                    case 'j': if (onMoveDown) onMoveDown(); break;
+                                    case 'y': if (onConvertCode) onConvertCode(); break;
+                                    case 'm': if (onConvertMarkdown) onConvertMarkdown(); break;
+                                    default: break;
+                                }
+
+                                // Remove listener after one key press
+                                document.removeEventListener('keydown', keyHandler, { capture: true });
+                            };
+
+                            document.addEventListener('keydown', keyHandler, { capture: true, once: true });
                         }
                     }
                 });
@@ -1630,7 +1657,7 @@ def exitonclick(): _SCREEN.exitonclick()
             </div>
         );
 
-        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave, searchQuery }) => {
+        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave, searchQuery, onInsertAbove, onInsertBelow, onConvertCode, onConvertMarkdown }) => {
             const textareaRef = useRef(null);
             const [inputValue, setInputValue] = useState("");
             const [codeCollapsed, setCodeCollapsed] = useState(false);
@@ -1694,6 +1721,28 @@ def exitonclick(): _SCREEN.exitonclick()
                                 value={cell.content}
                                 onChange={(e) => updateCell(cell.id, { content: e.target.value })}
                                 onBlur={triggerSave}
+                                onKeyDown={(e) => {
+                                    if (e.key.toLowerCase() === 'm' && e.ctrlKey) {
+                                        e.preventDefault();
+                                        // Command Mode logic for Markdown
+                                        const keyHandler = (ev) => {
+                                            ev.preventDefault();
+                                            ev.stopPropagation();
+                                            const key = ev.key.toLowerCase();
+                                            switch(key) {
+                                                case 'a': if (onInsertAbove) onInsertAbove(); break;
+                                                case 'b': if (onInsertBelow) onInsertBelow(); break;
+                                                case 'd': removeCell(cell.id); break;
+                                                case 'k': moveCell(index, -1); break;
+                                                case 'j': moveCell(index, 1); break;
+                                                case 'y': if (onConvertCode) onConvertCode(); break;
+                                                case 'm': if (onConvertMarkdown) onConvertMarkdown(); break;
+                                                default: break;
+                                            }
+                                        };
+                                        document.addEventListener('keydown', keyHandler, { capture: true, once: true });
+                                    }
+                                }}
                                 placeholder='# Write markdown notes here...'
                                 className="w-full bg-transparent resize-none focus:outline-none font-sans text-sm leading-relaxed text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600"
                                 spellCheck={false}
@@ -1743,6 +1792,17 @@ def exitonclick(): _SCREEN.exitonclick()
                                                 await runCell(cell.id);
                                                 focusNextCell();
                                             }}
+                                            onRunAndInsert={async () => {
+                                                await runCell(cell.id);
+                                                onInsertBelow();
+                                            }}
+                                            onInsertAbove={onInsertAbove}
+                                            onInsertBelow={onInsertBelow}
+                                            onDelete={() => removeCell(cell.id)}
+                                            onMoveUp={() => moveCell(index, -1)}
+                                            onMoveDown={() => moveCell(index, 1)}
+                                            onConvertCode={onConvertCode}
+                                            onConvertMarkdown={onConvertMarkdown}
                                             onBlur={triggerSave}
                                             showLineNumbers={showLineNumbers}
                                             searchQuery={searchQuery}
@@ -2113,7 +2173,7 @@ def exitonclick(): _SCREEN.exitonclick()
                 };
             }, []);
 
-            const addCell = (type) => {
+            const addCell = (type, index = null) => {
                 const newCell = {
                     id: Date.now().toString(),
                     type,
@@ -2124,8 +2184,18 @@ def exitonclick(): _SCREEN.exitonclick()
                     images: [],
                     html: null
                 };
-                setCells(prev => [...prev, newCell]);
+
+                setCells(prev => {
+                    if (index === null) {
+                         return [...prev, newCell];
+                    }
+                    const newCells = [...prev];
+                    newCells.splice(index, 0, newCell);
+                    return newCells;
+                });
+
                 setFocusedId(newCell.id);
+                return newCell.id;
             };
 
             const focusCell = (id) => {
@@ -2858,6 +2928,26 @@ stdout_val = sys.stdout.getvalue()
                                     submitInput={submitInput}
                                     triggerSave={() => performSave()}
                                     searchQuery={searchQuery}
+                                    onInsertAbove={() => {
+                                        addCell('code', index);
+                                        showNotification("Cell inserted above");
+                                    }}
+                                    onInsertBelow={() => {
+                                        addCell('code', index + 1);
+                                        showNotification("Cell inserted below");
+                                    }}
+                                    onConvertCode={() => {
+                                        if (cell.type === 'markdown') {
+                                            updateCell(cell.id, { type: 'code' });
+                                            showNotification("Converted to Code");
+                                        }
+                                    }}
+                                    onConvertMarkdown={() => {
+                                        if (cell.type === 'code') {
+                                            updateCell(cell.id, { type: 'markdown' });
+                                            showNotification("Converted to Markdown");
+                                        }
+                                    }}
                                 />
                             </div>
                         ))}
