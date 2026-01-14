@@ -150,6 +150,10 @@
     <script src="https://unpkg.com/codemirror@5.65.16/addon/display/placeholder.js"></script>
     <script src="https://unpkg.com/codemirror@5.65.16/addon/search/searchcursor.js"></script>
 
+    <!-- CodeMirror Hint Addon -->
+    <link rel="stylesheet" href="https://unpkg.com/codemirror@5.65.16/addon/hint/show-hint.css" />
+    <script src="https://unpkg.com/codemirror@5.65.16/addon/hint/show-hint.js"></script>
+
     <!-- LZ-String for Compression -->
     <script src="https://unpkg.com/lz-string@1.5.0/libs/lz-string.min.js"></script>
 
@@ -421,6 +425,107 @@
         }
         .dark .search-highlight {
             background-color: rgba(251, 191, 36, 0.6); /* amber-400 */
+        }
+
+        /* CodeMirror Hints */
+        .CodeMirror-hints {
+            position: absolute;
+            z-index: 100;
+            overflow: hidden;
+            list-style: none;
+            margin: 0;
+            padding: 2px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border-radius: 0.375rem;
+            border: 1px solid #e5e7eb;
+            background: white;
+            font-size: 0.875rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            max-height: 20em;
+            overflow-y: auto;
+        }
+        .dark .CodeMirror-hints {
+            background: #1f2937;
+            border-color: #374151;
+            color: #e5e5e5;
+        }
+
+        .CodeMirror-hint {
+            margin: 0;
+            padding: 4px 8px;
+            border-radius: 0.25rem;
+            white-space: pre;
+            color: #374151;
+            cursor: pointer;
+        }
+        .dark .CodeMirror-hint {
+            color: #d1d5db;
+        }
+
+        li.CodeMirror-hint-active {
+            background: #3b82f6;
+            color: white;
+        }
+        .dark li.CodeMirror-hint-active {
+            background: #2563eb;
+            color: white;
+        }
+
+        /* Docstring Tooltip */
+        .doc-tooltip {
+            position: absolute;
+            z-index: 110;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            padding: 8px;
+            font-size: 0.8rem;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            max-width: 400px;
+            max-height: 200px;
+            overflow: auto;
+            white-space: pre-wrap;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-radius: 0.375rem;
+        }
+        .dark .doc-tooltip {
+            background: #111827;
+            border: 1px solid #374151;
+            color: #e5e5e5;
+        }
+
+        /* Traceback Styling */
+        .traceback-container {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            white-space: pre-wrap;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            color: #1f2937;
+        }
+        .dark .traceback-container {
+            color: #e5e5e5;
+        }
+
+        .tb-header {
+            color: #dc2626; /* red-600 */
+            font-weight: bold;
+        }
+        .dark .tb-header {
+            color: #f87171; /* red-400 */
+        }
+
+        .tb-frame-header {
+             color: #4b5563; /* gray-600 */
+        }
+        .dark .tb-frame-header {
+             color: #9ca3af; /* gray-400 */
+        }
+
+        .tb-arrow {
+            color: #2563eb; /* blue-600 */
+            font-weight: bold;
+        }
+        .dark .tb-arrow {
+            color: #60a5fa; /* blue-400 */
         }
         
     </style>
@@ -788,6 +893,50 @@ def numinput(title, prompt, default=None, minval=None, maxval=None): return _SCR
 def exitonclick(): _SCREEN.exitonclick()
 `;
 
+        const PYTHON_HELPERS = `
+import rlcompleter
+import inspect
+import sys
+import __main__
+
+def get_completions(token):
+    try:
+        # Create a completer that uses the main module's namespace
+        completer = rlcompleter.Completer(__main__.__dict__)
+
+        matches = []
+        state = 0
+        while True:
+            match = completer.complete(token, state)
+            if match is None:
+                break
+            matches.append(match)
+            state += 1
+            if state > 50: break # Limit results
+
+        return matches
+    except:
+        return []
+
+def get_docstring(name):
+    try:
+        obj = eval(name, __main__.__dict__)
+        doc = inspect.getdoc(obj)
+        if doc:
+            return doc[:1000] + ("..." if len(doc) > 1000 else "")
+
+        # If no doc, try signature
+        try:
+            sig = str(inspect.signature(obj))
+            return sig
+        except:
+            pass
+
+        return None
+    except:
+        return None
+`;
+
         const usePyodide = () => {
             const [pyodide, setPyodide] = useState(null);
             const [isLoading, setIsLoading] = useState(true);
@@ -831,6 +980,10 @@ def exitonclick(): _SCREEN.exitonclick()
                             // Inject Turtle Shim
                             py.FS.writeFile("pynotebook_turtle.py", TURTLE_SHIM);
 
+                            // Inject Helpers
+                            py.FS.writeFile("pynotebook_helpers.py", PYTHON_HELPERS);
+                            py.runPython("import pynotebook_helpers");
+
                             if (isMounted) {
                                 setPyodide(py);
                                 setIsLoading(false);
@@ -856,6 +1009,10 @@ def exitonclick(): _SCREEN.exitonclick()
 
                                 // Inject Turtle Shim
                                 py.FS.writeFile("pynotebook_turtle.py", TURTLE_SHIM);
+
+                                // Inject Helpers
+                                py.FS.writeFile("pynotebook_helpers.py", PYTHON_HELPERS);
+                                py.runPython("import pynotebook_helpers");
 
                                 if (isMounted) {
                                     setPyodide(py);
@@ -1455,24 +1612,26 @@ def exitonclick(): _SCREEN.exitonclick()
             );
         };
 
-        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onRunAndInsert, onBlur, showLineNumbers, searchQuery, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown, visible = true }) => {
+        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onRunAndInsert, onBlur, showLineNumbers, searchQuery, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown, completionEngine }) => {
             const editorRef = useRef(null);
             const cmInstance = useRef(null);
             const [hasError, setHasError] = useState(false);
-
+            const [docTooltip, setDocTooltip] = useState(null);
+            
             // Refresh CodeMirror when visibility changes (fixes empty cell issue)
             useEffect(() => {
                 if (visible && cmInstance.current) {
                     setTimeout(() => cmInstance.current.refresh(), 10);
                 }
             }, [visible]);
+
             
             // Latest props ref to avoid stale closures in CodeMirror handlers
-            const handlersRef = useRef({ onRun, onRunAndAdvance, onRunAndInsert, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown });
+            const handlersRef = useRef({ onRun, onRunAndAdvance, onRunAndInsert, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown, completionEngine });
 
             useEffect(() => {
-                handlersRef.current = { onRun, onRunAndAdvance, onRunAndInsert, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown };
-            }, [onRun, onRunAndAdvance, onRunAndInsert, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown]);
+                handlersRef.current = { onRun, onRunAndAdvance, onRunAndInsert, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown, completionEngine };
+            }, [onRun, onRunAndAdvance, onRunAndInsert, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown, completionEngine]);
 
             // Theme detection for CodeMirror
             const isDark = document.documentElement.classList.contains('dark');
@@ -1488,6 +1647,40 @@ def exitonclick(): _SCREEN.exitonclick()
                 }
 
                 // Initialize CodeMirror
+
+                // Helper for Hints
+                if (window.CodeMirror) {
+                    window.CodeMirror.registerHelper("hint", "python", async (editor, options) => {
+                        const engine = handlersRef.current.completionEngine;
+                        if (!engine) return null;
+
+                        const cur = editor.getCursor();
+                        const line = editor.getLine(cur.line);
+
+                        // Grab line up to cursor
+                        const lineBefore = line.slice(0, cur.ch);
+                        const match = /([a-zA-Z_0-9\.]+)$/.exec(lineBefore);
+
+                        if (!match) return null;
+
+                        const word = match[1];
+                        const start = cur.ch - word.length;
+                        const end = cur.ch;
+
+                        const suggestions = await engine.getCompletions(word);
+                        if (!suggestions || suggestions.length === 0) return null;
+
+                        return {
+                            list: suggestions.map(s => ({
+                                text: s,
+                                displayText: s.split('.').pop()
+                            })),
+                            from: window.CodeMirror.Pos(cur.line, start),
+                            to: window.CodeMirror.Pos(cur.line, end)
+                        };
+                    });
+                }
+
                 const cm = window.CodeMirror(editorRef.current, {
                     value: value || "",
                     mode: "python",
@@ -1496,6 +1689,7 @@ def exitonclick(): _SCREEN.exitonclick()
                     lineWrapping: true,
                     placeholder: placeholder,
                     viewportMargin: Infinity, // Auto-height
+                    hintOptions: { hint: window.CodeMirror.hint.python, completeSingle: false },
                     extraKeys: {
                         "Shift-Enter": () => handlersRef.current.onRunAndAdvance && handlersRef.current.onRunAndAdvance(),
                         "Cmd-Shift-Enter": () => handlersRef.current.onRunAndAdvance && handlersRef.current.onRunAndAdvance(),
@@ -1505,6 +1699,25 @@ def exitonclick(): _SCREEN.exitonclick()
 
                         "Alt-Enter": () => handlersRef.current.onRunAndInsert && handlersRef.current.onRunAndInsert(),
 
+                        "Ctrl-Space": "autocomplete",
+                        "Ctrl-Shift-Space": async (cm) => {
+                             const engine = handlersRef.current.completionEngine;
+                             if (!engine) return;
+                             const cur = cm.getCursor();
+                             const lineBefore = cm.getLine(cur.line).slice(0, cur.ch);
+                             const match = /([a-zA-Z_0-9\.]+)$/.exec(lineBefore);
+                             if (match) {
+                                 const doc = await engine.getDocstring(match[1]);
+                                 if (doc) {
+                                     const coords = cm.charCoords(cur, "page");
+                                     // Adjust coordinates to be relative to viewport or fixed
+                                     // For simplicity, we use fixed position based on page coords
+                                     // Note: React state update will trigger re-render
+                                     setDocTooltip({ x: coords.left, y: coords.bottom + 5, content: doc });
+                                 }
+                             }
+                        },
+
                         "Tab": (cm) => {
                             cm.replaceSelection("    ", "end");
                         },
@@ -1512,6 +1725,35 @@ def exitonclick(): _SCREEN.exitonclick()
                         "Cmd-M": (cm) => enterCommandMode()
                     }
                 });
+
+                // Auto-trigger completion
+                cm.on("keyup", (cm, event) => {
+                    if (!cm.state.completionActive && event.key === '.') {
+                        setTimeout(() => {
+                            if (!cm.state.completionActive) {
+                                cm.showHint({ completeSingle: false });
+                            }
+                        }, 50);
+                    }
+                    if (event.key === '(') {
+                        const engine = handlersRef.current.completionEngine;
+                        if (!engine) return;
+                        const cur = cm.getCursor();
+                        const lineBefore = cm.getLine(cur.line).slice(0, cur.ch - 1);
+                        const match = /([a-zA-Z_0-9\.]+)$/.exec(lineBefore);
+                         if (match) {
+                             engine.getDocstring(match[1]).then(doc => {
+                                 if (doc) {
+                                     const coords = cm.charCoords(cur, "page");
+                                     setDocTooltip({ x: coords.left, y: coords.bottom + 5, content: doc });
+                                 }
+                             });
+                         }
+                    }
+                });
+
+                cm.on("mousedown", () => setDocTooltip(null));
+                cm.on("blur", () => setDocTooltip(null));
 
                 const enterCommandMode = () => {
                     // Colab Command Mode
@@ -1653,7 +1895,20 @@ def exitonclick(): _SCREEN.exitonclick()
             }
 
             return (
-                <div ref={editorRef} className={`rounded-md overflow-hidden border border-gray-200 dark:border-gray-700 ${className}`}></div>
+                <div className="relative">
+                     <div ref={editorRef} className={`rounded-md overflow-hidden border border-gray-200 dark:border-gray-700 ${className}`}></div>
+                     {docTooltip && (
+                         ReactDOM.createPortal(
+                             <div
+                                 className="doc-tooltip"
+                                 style={{ left: docTooltip.x, top: docTooltip.y }}
+                             >
+                                 {docTooltip.content}
+                             </div>,
+                             document.body
+                         )
+                     )}
+                </div>
             );
         };
 
@@ -1742,7 +1997,42 @@ def exitonclick(): _SCREEN.exitonclick()
             </div>
         );
 
-        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave, searchQuery, onInsertAbove, onInsertBelow, onConvertCode, onConvertMarkdown }) => {
+        const FormattedTraceback = ({ text }) => {
+             if (!text) return null;
+
+             const lines = text.split('\n');
+             const elements = [];
+
+             lines.forEach((line, idx) => {
+                 let displayLine = line;
+                 // Clean up Pyodide wrapper message if on first line
+                 if (idx === 0 && displayLine.startsWith("PythonError: ")) {
+                     displayLine = displayLine.replace("PythonError: ", "");
+                 }
+
+                 if (displayLine.includes("Traceback (most recent call last)")) {
+                     elements.push(<div key={idx} className="tb-header mt-2 mb-1">{displayLine}</div>);
+                 } else if (/File ".*", line \d+/.test(displayLine)) {
+                      // Highlight file paths?
+                      elements.push(<div key={idx} className="tb-frame-header">{displayLine}</div>);
+                 } else if (displayLine.trim().startsWith("---->")) {
+                      const parts = displayLine.split("---->");
+                      elements.push(
+                          <div key={idx} className="bg-red-50 dark:bg-red-900/10">
+                              <span className="tb-arrow select-none">----></span>{parts[1]}
+                          </div>
+                      );
+                 } else if (/^\w+Error:/.test(displayLine)) {
+                      elements.push(<div key={idx} className="tb-header font-bold mt-2">{displayLine}</div>);
+                 } else {
+                      elements.push(<div key={idx}>{displayLine}</div>);
+                 }
+             });
+
+             return <div className="traceback-container">{elements}</div>;
+        };
+
+        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave, searchQuery, onInsertAbove, onInsertBelow, onConvertCode, onConvertMarkdown, completionEngine }) => {
             const textareaRef = useRef(null);
             const [inputValue, setInputValue] = useState("");
             const [outputCollapsed, setOutputCollapsed] = useState(false);
@@ -1893,6 +2183,7 @@ def exitonclick(): _SCREEN.exitonclick()
                                             onBlur={triggerSave}
                                             showLineNumbers={showLineNumbers}
                                             searchQuery={searchQuery}
+                                            completionEngine={completionEngine}
                                             className="w-full text-gray-800 dark:text-gray-200"
                                             placeholder='print("Hello Python")'
                                         />
@@ -1977,7 +2268,7 @@ def exitonclick(): _SCREEN.exitonclick()
                                                         ? 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-500'
                                                         : 'bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-green-500'
                                                     }`}>
-                                                        {cell.error || cell.output}
+                                                        {isError ? <FormattedTraceback text={cell.error} /> : cell.output}
                                                     </div>
                                                 }
                                             />
@@ -2046,6 +2337,29 @@ def exitonclick(): _SCREEN.exitonclick()
             const [user, setUser] = useState(null);
             const [isGuest, setIsGuest] = useState(false);
             const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+            const completionEngine = {
+                getCompletions: async (token) => {
+                    if (!pyodide || isLoading) return [];
+                    try {
+                        const safeToken = token.replace(/['"\\]/g, '\\$&');
+                        const res = await pyodide.runPythonAsync(`pynotebook_helpers.get_completions('${safeToken}')`);
+                        return res.toJs();
+                    } catch (e) {
+                        return [];
+                    }
+                },
+                getDocstring: async (name) => {
+                    if (!pyodide || isLoading) return null;
+                     try {
+                        const safeName = name.replace(/['"\\]/g, '\\$&');
+                        const res = await pyodide.runPythonAsync(`pynotebook_helpers.get_docstring('${safeName}')`);
+                        return res;
+                    } catch (e) {
+                        return null;
+                    }
+                }
+            };
 
             // --- Auth Logic ---
             useEffect(() => {
@@ -2337,6 +2651,25 @@ def exitonclick(): _SCREEN.exitonclick()
                 if (!cellToRun || cellToRun.type === 'markdown') return true; // Markdown is "success"
 
                 updateCell(id, { isRunning: true, output: '', error: null, images: [], html: null });
+
+                // Handle Magics
+                const trimmed = cellToRun.content.trim();
+                if (trimmed.startsWith('%%html')) {
+                    const htmlContent = trimmed.substring(6); // Remove %%html (keeping whitespace/newlines)
+                    // Or better, remove first line? Colab usually treats the rest as HTML.
+                    // %%html
+                    // <div>...</div>
+                    // But if they write %%html <div>...</div> on same line?
+                    // Let's just remove the magic.
+
+                    updateCell(id, {
+                        isRunning: false,
+                        output: '',
+                        images: [],
+                        html: htmlContent
+                    });
+                    return true;
+                }
 
                 // Reset Turtle Queue
                 if (window.resetTurtleQueue) window.resetTurtleQueue();
@@ -3081,6 +3414,7 @@ stdout_val = sys.stdout.getvalue()
                                             showNotification("Converted to Markdown");
                                         }
                                     }}
+                                    completionEngine={completionEngine}
                                 />
                             </div>
                         ))}
