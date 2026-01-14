@@ -1,0 +1,9 @@
+127.0.0.1 - - [14/Jan/2026 17:00:23] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [14/Jan/2026 17:00:26] "GET /assets/logo.png HTTP/1.1" 200 -
+127.0.0.1 - - [14/Jan/2026 17:00:26] "GET /assets/google.webp HTTP/1.1" 200 -
+127.0.0.1 - - [14/Jan/2026 17:01:24] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [14/Jan/2026 17:01:27] "GET /assets/logo.png HTTP/1.1" 200 -
+127.0.0.1 - - [14/Jan/2026 17:01:27] "GET /assets/google.webp HTTP/1.1" 200 -
+127.0.0.1 - - [14/Jan/2026 17:02:26] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [14/Jan/2026 17:02:29] "GET /assets/logo.png HTTP/1.1" 200 -
+127.0.0.1 - - [14/Jan/2026 17:02:29] "GET /assets/google.webp HTTP/1.1" 200 -
