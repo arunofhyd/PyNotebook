@@ -1738,7 +1738,6 @@ def exitonclick(): _SCREEN.exitonclick()
         const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave, searchQuery, onInsertAbove, onInsertBelow, onConvertCode, onConvertMarkdown }) => {
             const textareaRef = useRef(null);
             const [inputValue, setInputValue] = useState("");
-            const [codeCollapsed, setCodeCollapsed] = useState(false);
             const [outputCollapsed, setOutputCollapsed] = useState(false);
             const [showLineNumbers, setShowLineNumbers] = useState(false);
 
@@ -1767,7 +1766,7 @@ def exitonclick(): _SCREEN.exitonclick()
                     {/* Header */}
                     <div
                         className={`flex items-center justify-between px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-t-lg border-b border-gray-100 dark:border-gray-800 cursor-pointer select-none`}
-                        onClick={(e) => { if(cell.type === 'code') setCodeCollapsed(!codeCollapsed); }}
+                        onClick={(e) => { if(cell.type === 'code') updateCell(cell.id, { codeCollapsed: !cell.codeCollapsed }); }}
                         title={cell.type === 'code' ? "Click to toggle code visibility" : ""}
                     >
                         <div className="flex items-center space-x-2">
@@ -1779,7 +1778,7 @@ def exitonclick(): _SCREEN.exitonclick()
                             }`}>
                                 {cell.type}
                             </span>
-                            {cell.type === 'code' && codeCollapsed && (
+                            {cell.type === 'code' && cell.codeCollapsed && (
                                 <span className="text-xs text-gray-400 dark:text-gray-500 italic ml-2">(Code Hidden)</span>
                             )}
                         </div>
@@ -1861,7 +1860,7 @@ def exitonclick(): _SCREEN.exitonclick()
                                     </div>
                                 }
                                 content={
-                                    <div className={codeCollapsed ? 'hidden' : 'block'}>
+                                    <div className={cell.codeCollapsed ? 'hidden' : 'block'}>
                                         <CodeEditor
                                             value={cell.content}
                                             onChange={(newContent) => updateCell(cell.id, { content: newContent })}
@@ -2143,7 +2142,8 @@ def exitonclick(): _SCREEN.exitonclick()
                 const cleanCells = currentCells.map(c => ({
                     id: c.id,
                     type: c.type,
-                    content: c.content
+                    content: c.content,
+                    codeCollapsed: c.codeCollapsed || false
                 }));
 
                 // Compress data to maximize storage limit.
@@ -2701,7 +2701,8 @@ stdout_val = sys.stdout.getvalue()
                                     error: null,
                                     isRunning: false,
                                     images: [],
-                                    html: null
+                                    html: null,
+                                    codeCollapsed: cell.metadata?.jupyter?.source_hidden || false
                                 };
                             });
 
@@ -2728,10 +2729,20 @@ stdout_val = sys.stdout.getvalue()
                         error: null,
                         isRunning: false,
                         images: [],
-                        html: null
+                    html: null,
+                        codeCollapsed: false
                     }]);
                 }
             };
+
+            const toggleAllCode = (shouldHide) => {
+                setCells(prev => prev.map(c =>
+                    c.type === 'code' ? { ...c, codeCollapsed: shouldHide } : c
+                ));
+            };
+
+            const allCodeHidden = cells.filter(c => c.type === 'code').every(c => c.codeCollapsed);
+            const hasCodeCells = cells.some(c => c.type === 'code');
 
             const menuContent = (
                 <div className="flex flex-col py-1">
@@ -2743,6 +2754,15 @@ stdout_val = sys.stdout.getvalue()
                         <SimpleIcon name="Play" className="mr-3 h-4 w-4 text-green-600" />
                         Run All Cells
                     </button>
+                    {hasCodeCells && (
+                        <button
+                            onClick={() => { toggleAllCode(!allCodeHidden); setIsMenuOpen(false); }}
+                            className="flex items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
+                        >
+                            <SimpleIcon name={allCodeHidden ? "Eye" : "EyeOff"} className="mr-3 h-4 w-4" />
+                            {allCodeHidden ? "Show All Code" : "Hide All Code"}
+                        </button>
+                    )}
                     <div className="lg:hidden border-t border-gray-100 dark:border-gray-800 my-1"></div>
                     <button
                         onClick={() => { setIsShortcutsOpen(true); setIsMenuOpen(false); }}
@@ -2908,7 +2928,7 @@ stdout_val = sys.stdout.getvalue()
                     {/* Search Bar */}
                     {isSearchOpen && (
                         <div className="fixed top-16 left-0 right-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-2 shadow-md animate-in slide-in-from-top-2">
-                            <div className="max-w-6xl mx-auto flex items-center gap-2">
+                            <div className="w-full px-4 lg:px-8 flex items-center gap-2">
                                 <div className="relative flex-grow">
                                     <input
                                         id="search-input"
@@ -2996,7 +3016,7 @@ stdout_val = sys.stdout.getvalue()
                         </>
                     )}
 
-                    <main className="pt-24 px-4 max-w-6xl mx-auto w-full">
+                    <main className="pt-24 px-4 lg:px-8 w-full">
                         {loadError && loadError !== "PROTOCOL_ERROR" && (
                             <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-200 flex items-start">
                                 <SimpleIcon name="XCircle" className="h-5 w-5 mr-3 mt-0.5 flex-shrink-0" />
