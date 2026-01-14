@@ -2,7 +2,7 @@
   <img src="assets/logo.png" alt="PyNotebook Logo" width="120" height="120">
   <h1>PyNotebook</h1>
   <p><strong>Serverless Python in your Browser</strong></p>
-  
+
   <p>
     <img src="https://img.shields.io/badge/Built%20With-React-61DAFB?style=flat-square&logo=react" alt="React">
     <img src="https://img.shields.io/badge/Style-Tailwind_CSS-38B2AC?style=flat-square&logo=tailwind-css" alt="Tailwind CSS">
@@ -14,7 +14,7 @@
 
 ---
 
-**PyNotebook** is a lightweight, single-file Jupyter-like notebook environment that runs Python code entirely in your web browser using [Pyodide](https://pyodide.org/). 
+**PyNotebook** is a lightweight, single-file Jupyter-like notebook environment that runs Python code entirely in your web browser using [Pyodide](https://pyodide.org/).
 
 Unlike traditional notebooks that require a backend server, PyNotebook executes code on your device via WebAssembly. This makes it **private**, **fast**, and **offline-capable**.
 
