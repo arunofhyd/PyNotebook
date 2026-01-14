@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://pynotebooks.vercel.app/sitemap.xml
