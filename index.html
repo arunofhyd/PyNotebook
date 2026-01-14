@@ -130,6 +130,7 @@
     <script src="https://unpkg.com/codemirror@5.65.16/lib/codemirror.js"></script>
     <script src="https://unpkg.com/codemirror@5.65.16/mode/python/python.js"></script>
     <script src="https://unpkg.com/codemirror@5.65.16/addon/display/placeholder.js"></script>
+    <script src="https://unpkg.com/codemirror@5.65.16/addon/search/searchcursor.js"></script>
 
     <!-- LZ-String for Compression -->
     <script src="https://unpkg.com/lz-string@1.5.0/libs/lz-string.min.js"></script>
@@ -395,6 +396,14 @@
         .dark .auth-form-container {
             background-image: radial-gradient(circle at 50% 50%, rgba(29, 78, 216, 0.1) 0%, transparent 60%);
         }
+
+        /* Search Highlight */
+        .search-highlight {
+            background-color: rgba(253, 224, 71, 0.5); /* yellow-300 with opacity */
+        }
+        .dark .search-highlight {
+            background-color: rgba(251, 191, 36, 0.6); /* amber-400 */
+        }
         
     </style>
 </head>
@@ -447,6 +456,8 @@
         const Icons = {
             Terminal: <g><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></g>,
             Play: <polygon points="5 3 19 12 5 21 5 3" />,
+            Square: <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />,
+            Search: <g><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></g>,
             Plus: <path d="M5 12h14M12 5v14" />,
             Trash2: <g><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></g>,
             MoveUp: <path d="M12 19V5M5 12l7-7 7 7" />,
@@ -1358,7 +1369,7 @@ def exitonclick(): _SCREEN.exitonclick()
             );
         };
 
-        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onBlur }) => {
+        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onBlur, showLineNumbers, searchQuery }) => {
             const editorRef = useRef(null);
             const cmInstance = useRef(null);
             const [hasError, setHasError] = useState(false);
@@ -1381,7 +1392,7 @@ def exitonclick(): _SCREEN.exitonclick()
                     value: value || "",
                     mode: "python",
                     theme: isDark ? "monokai" : "eclipse", // 'default' or 'eclipse' for light
-                    lineNumbers: false,
+                    lineNumbers: showLineNumbers || false,
                     lineWrapping: true,
                     placeholder: placeholder,
                     viewportMargin: Infinity, // Auto-height
@@ -1428,6 +1439,35 @@ def exitonclick(): _SCREEN.exitonclick()
                     cmInstance.current.setCursor(cursor);
                 }
             }, [value]);
+
+            // Sync line numbers
+            useEffect(() => {
+                if (cmInstance.current) {
+                    cmInstance.current.setOption("lineNumbers", showLineNumbers);
+                }
+            }, [showLineNumbers]);
+
+            // Sync Search Highlight
+            useEffect(() => {
+                if (!cmInstance.current) return;
+                const cm = cmInstance.current;
+
+                // Clear old marks
+                if (cm._searchMarks) {
+                    cm._searchMarks.forEach(m => m.clear());
+                }
+                cm._searchMarks = [];
+
+                if (!searchQuery) return;
+
+                // Requires searchcursor.js
+                if (cm.getSearchCursor) {
+                    const cursor = cm.getSearchCursor(searchQuery);
+                    while (cursor.findNext()) {
+                        cm._searchMarks.push(cm.markText(cursor.from(), cursor.to(), { className: "search-highlight" }));
+                    }
+                }
+            }, [searchQuery, value]);
 
             // Sync theme changes
             useEffect(() => {
@@ -1572,11 +1612,12 @@ def exitonclick(): _SCREEN.exitonclick()
             </div>
         );
 
-        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave }) => {
+        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave, searchQuery }) => {
             const textareaRef = useRef(null);
             const [inputValue, setInputValue] = useState("");
             const [codeCollapsed, setCodeCollapsed] = useState(false);
             const [outputCollapsed, setOutputCollapsed] = useState(false);
+            const [showLineNumbers, setShowLineNumbers] = useState(false);
 
             // Auto-resize for markdown cells
             useEffect(() => {
@@ -1645,18 +1686,33 @@ def exitonclick(): _SCREEN.exitonclick()
                         {cell.type === 'code' && (
                             <CellRow
                                 gutter={
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); runCell(cell.id); }}
-                                        disabled={!isRuntimeReady || cell.isRunning}
-                                        title="Run Cell"
-                                        className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
-                                            cell.isRunning 
-                                            ? 'bg-gray-100 dark:bg-gray-800 cursor-wait text-gray-500' 
-                                            : 'bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600 dark:hover:text-green-400 text-gray-500 dark:text-gray-400'
-                                        }`}
-                                    >
-                                        {cell.isRunning ? <SimpleIcon name="Loader2" className="h-4 w-4 spinner" /> : <SimpleIcon name="Play" className="h-4 w-4 ml-0.5" />}
-                                    </button>
+                                    <div className="flex flex-col gap-2 items-center">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (cell.isRunning) stopCell(cell.id);
+                                                else runCell(cell.id);
+                                            }}
+                                            disabled={!cell.isRunning && !isRuntimeReady}
+                                            title={cell.isRunning ? "Stop Execution" : "Run Cell"}
+                                            className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
+                                                cell.isRunning
+                                            ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40'
+                                                : 'bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600 dark:hover:text-green-400 text-gray-500 dark:text-gray-400'
+                                            }`}
+                                        >
+                                        {cell.isRunning ? <SimpleIcon name="Square" className="h-3 w-3" /> : <SimpleIcon name="Play" className="h-4 w-4 ml-0.5" />}
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setShowLineNumbers(!showLineNumbers); }}
+                                            title={showLineNumbers ? "Hide Line Numbers" : "Show Line Numbers"}
+                                            className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 ${
+                                                showLineNumbers ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'
+                                            }`}
+                                        >
+                                            <span className="text-xs font-mono font-bold">#</span>
+                                        </button>
+                                    </div>
                                 }
                                 content={
                                     <div className={codeCollapsed ? 'hidden' : 'block'}>
@@ -1669,6 +1725,8 @@ def exitonclick(): _SCREEN.exitonclick()
                                                 focusNextCell();
                                             }}
                                             onBlur={triggerSave}
+                                            showLineNumbers={showLineNumbers}
+                                            searchQuery={searchQuery}
                                             className="w-full text-gray-800 dark:text-gray-200"
                                             placeholder='print("Hello Python")'
                                         />
@@ -1786,6 +1844,12 @@ def exitonclick(): _SCREEN.exitonclick()
             const [inputRequest, setInputRequest] = useState(null); // { cellId, prompt, resolve }
             const [isTurtleOpen, setIsTurtleOpen] = useState(false);
 
+            // Search State
+            const [isSearchOpen, setIsSearchOpen] = useState(false);
+            const [searchQuery, setSearchQuery] = useState("");
+            const [searchResults, setSearchResults] = useState([]);
+            const [currentResultIndex, setCurrentResultIndex] = useState(-1);
+
             // Auth State
             const [user, setUser] = useState(null);
             const [isGuest, setIsGuest] = useState(false);
@@ -1820,15 +1884,23 @@ def exitonclick(): _SCREEN.exitonclick()
                 }
             };
 
+            const stopCell = (id) => {
+                // 1. Check if waiting for input
+                if (inputRequest && inputRequest.cellId === id) {
+                    inputRequest.reject(new Error("KeyboardInterrupt"));
+                    setInputRequest(null);
+                }
+                // 2. Force state update
+                updateCell(id, { isRunning: false, error: "Stopped by user" });
+            };
+
             // Register global input handler for Pyodide
             useEffect(() => {
-                if (!window.pyNotebookInputHandler) {
-                    window.pyNotebookInputHandler = (cellId, promptText, title) => {
-                        return new Promise((resolve) => {
-                            setInputRequest({ cellId, prompt: promptText, title, resolve });
-                        });
-                    };
-                }
+                window.pyNotebookInputHandler = (cellId, promptText, title) => {
+                    return new Promise((resolve, reject) => {
+                        setInputRequest({ cellId, prompt: promptText, title, resolve, reject });
+                    });
+                };
             }, []);
             
             // --- Theme Logic ---
@@ -2057,6 +2129,16 @@ def exitonclick(): _SCREEN.exitonclick()
                 if (window.resetTurtleQueue) window.resetTurtleQueue();
 
                 try {
+                    // Set stream callback
+                    window.streamOutput = (text) => {
+                        setCells(prev => prev.map(c => {
+                            if (c.id === id) {
+                                return { ...c, output: (c.output || "") + text };
+                            }
+                            return c;
+                        }));
+                    };
+
                     // Inject Input Transformer and Async Input Helper
                     // Set Matplotlib style based on current theme
                     const themeSetup = isDark ? "plt.style.use('dark_background')" : "plt.style.use('default')";
@@ -2076,6 +2158,21 @@ import builtins
 import matplotlib.pyplot as plt
 import pandas as pd
 from js import window
+
+# Real-time Stdout
+class RealtimeStdout:
+    def __init__(self):
+        self.buffer = io.StringIO()
+    def write(self, text):
+        self.buffer.write(text)
+        if hasattr(window, "streamOutput"):
+             window.streamOutput(text)
+    def flush(self):
+        pass
+    def getvalue(self):
+        return self.buffer.getvalue()
+
+sys.stdout = RealtimeStdout()
 
 # Fix: Reset turtle queue to remove any 'create_turtle' events triggered by import side-effects
 if hasattr(window, "resetTurtleQueue"):
@@ -2101,71 +2198,92 @@ async def async_numinput(title, prompt, default=None, minval=None, maxval=None):
     except:
         return None
 
-# AST Transformer to convert input() -> await async_input()
-class InputTransformer(ast.NodeTransformer):
+# Advanced AST Transformer to handle async inputs even inside functions
+class CallGraphWalker(ast.NodeVisitor):
     def __init__(self):
-        self.in_sync_function = False
+        self.callees = {} # function_name -> set(called_functions)
+        self.calls_input = set() # set of function names that call input/async_input
+        self.current_function = None
 
     def visit_FunctionDef(self, node):
-        outer_sync = self.in_sync_function
-        self.in_sync_function = True
+        outer = self.current_function
+        self.current_function = node.name
+        self.callees[node.name] = set()
         self.generic_visit(node)
-        self.in_sync_function = outer_sync
-        return node
-    
+        self.current_function = outer
+
     def visit_AsyncFunctionDef(self, node):
-        outer_sync = self.in_sync_function
-        self.in_sync_function = False
-        self.generic_visit(node)
-        self.in_sync_function = outer_sync
-        return node
+        self.visit_FunctionDef(node)
 
     def visit_Call(self, node):
-        if self.in_sync_function:
-            return self.generic_visit(node)
-            
-        # Match input(), textinput(), numinput() (global functions)
+        # Identify calls to input/textinput/numinput
+        is_input = False
+        if isinstance(node.func, ast.Name):
+            if node.func.id in ['input', 'textinput', 'numinput']:
+                is_input = True
+            elif self.current_function:
+                 self.callees[self.current_function].add(node.func.id)
+        elif isinstance(node.func, ast.Attribute):
+            if node.func.attr in ['textinput', 'numinput']:
+                 is_input = True
+
+        if is_input and self.current_function:
+             self.calls_input.add(self.current_function)
+
+        self.generic_visit(node)
+
+class AsyncTransformer(ast.NodeTransformer):
+    def __init__(self, async_functions):
+        self.async_functions = async_functions
+
+    def visit_FunctionDef(self, node):
+        if node.name in self.async_functions:
+            # Convert to AsyncFunctionDef
+            new_node = ast.AsyncFunctionDef(
+                name=node.name,
+                args=node.args,
+                body=node.body,
+                decorator_list=node.decorator_list,
+                returns=node.returns,
+                type_comment=node.type_comment
+            )
+            self.generic_visit(new_node)
+            return ast.copy_location(new_node, node)
+        return self.generic_visit(node)
+
+    def visit_Call(self, node):
+        self.generic_visit(node)
+
+        should_await = False
+        # Check if calling an input function or a now-async user function
         if isinstance(node.func, ast.Name):
             if node.func.id == 'input':
-                new_node = ast.Await(
-                    value=ast.Call(
-                        func=ast.Name(id='async_input', ctx=ast.Load()),
-                        args=node.args,
-                        keywords=node.keywords
-                    )
-                )
-                return ast.copy_location(new_node, node)
+                 node.func.id = 'async_input'
+                 should_await = True
             elif node.func.id in ['textinput', 'numinput']:
-                func_name = 'async_textinput' if node.func.id == 'textinput' else 'async_numinput'
-                new_node = ast.Await(
-                    value=ast.Call(
-                        func=ast.Name(id=func_name, ctx=ast.Load()),
-                        args=node.args,
-                        keywords=node.keywords
-                    )
-                )
-                return ast.copy_location(new_node, node)
+                 node.func.id = 'async_' + node.func.id
+                 should_await = True
+            elif node.func.id in self.async_functions:
+                 should_await = True
+        elif isinstance(node.func, ast.Attribute):
+             if node.func.attr in ['textinput', 'numinput']:
+                  # Replace method call (e.g. screen.textinput) with global helper call
+                  # We discard the object (screen/turtle) because our helpers are global singletons/proxies
+                  func_name = 'async_' + node.func.attr
+                  node.func = ast.Name(id=func_name, ctx=ast.Load())
+                  should_await = True
 
-        # Match *.textinput() and *.numinput() (e.g. screen.textinput, turtle.textinput)
-        if isinstance(node.func, ast.Attribute) and node.func.attr in ['textinput', 'numinput']:
-            func_name = 'async_textinput' if node.func.attr == 'textinput' else 'async_numinput'
-            new_node = ast.Await(
-                value=ast.Call(
-                    func=ast.Name(id=func_name, ctx=ast.Load()),
-                    args=node.args,
-                    keywords=node.keywords
-                )
-            )
-            return ast.copy_location(new_node, node)
+        if should_await:
+            return ast.Await(value=node)
 
-        return self.generic_visit(node)
+        return node
 
 `);
                     
                     // Reset stdout & Clear Plots
                     // Use close('all') to ensure no empty white figures remain from previous incomplete runs or implicit creation
                     pyodide.runPython(`
-sys.stdout = io.StringIO()
+sys.stdout = RealtimeStdout()
 plt.close('all')
 `);
                     
@@ -2176,7 +2294,26 @@ source = ${JSON.stringify(cellToRun.content)}
 result = source
 try:
     tree = ast.parse(source)
-    tree = InputTransformer().visit(tree)
+
+    # 1. Build Call Graph
+    walker = CallGraphWalker()
+    walker.visit(tree)
+
+    # 2. Propagate Async (Fixed-point iteration)
+    changed = True
+    async_funcs = set(walker.calls_input)
+
+    while changed:
+        changed = False
+        for func, callees in walker.callees.items():
+            if func not in async_funcs:
+                if not async_funcs.isdisjoint(callees):
+                    async_funcs.add(func)
+                    changed = True
+
+    # 3. Transform
+    transformer = AsyncTransformer(async_funcs)
+    tree = transformer.visit(tree)
     ast.fix_missing_locations(tree)
     result = ast.unparse(tree)
 except Exception as e:
@@ -2523,6 +2660,21 @@ stdout_val = sys.stdout.getvalue()
                             >
                                 Run All
                             </Button>
+                             <Button
+                                variant="ghost"
+                                size="icon"
+                                icon="Search"
+                                onClick={() => {
+                                    setIsSearchOpen(!isSearchOpen);
+                                    if (!isSearchOpen) {
+                                        setTimeout(() => document.getElementById('search-input')?.focus(), 100);
+                                    } else {
+                                        setSearchQuery("");
+                                        setSearchResults([]);
+                                    }
+                                }}
+                                title="Search Notebook"
+                            />
                              <Button 
                                 variant="ghost" 
                                 size="icon" 
@@ -2541,6 +2693,67 @@ stdout_val = sys.stdout.getvalue()
                             </button>
                         </div>
                     </header>
+
+                    {/* Search Bar */}
+                    {isSearchOpen && (
+                        <div className="fixed top-16 left-0 right-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-2 shadow-md animate-in slide-in-from-top-2">
+                            <div className="max-w-4xl mx-auto flex items-center gap-2">
+                                <div className="relative flex-grow">
+                                    <input
+                                        id="search-input"
+                                        type="text"
+                                        value={searchQuery}
+                                        onChange={(e) => {
+                                            const query = e.target.value;
+                                            setSearchQuery(query);
+                                            if (!query) {
+                                                setSearchResults([]);
+                                                setCurrentResultIndex(-1);
+                                                return;
+                                            }
+                                            // Find matches
+                                            const results = [];
+                                            cells.forEach((cell, idx) => {
+                                                if (cell.content.toLowerCase().includes(query.toLowerCase())) {
+                                                    results.push(cell.id);
+                                                }
+                                            });
+                                            setSearchResults(results);
+                                            setCurrentResultIndex(results.length > 0 ? 0 : -1);
+                                            // Auto-scroll to first
+                                            if (results.length > 0) {
+                                                document.getElementById(`cell-${results[0]}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                setFocusedId(results[0]);
+                                            }
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && searchResults.length > 0) {
+                                                e.preventDefault();
+                                                const nextIdx = (currentResultIndex + (e.shiftKey ? -1 : 1) + searchResults.length) % searchResults.length;
+                                                setCurrentResultIndex(nextIdx);
+                                                const cellId = searchResults[nextIdx];
+                                                document.getElementById(`cell-${cellId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                setFocusedId(cellId);
+                                            }
+                                        }}
+                                        placeholder="Find in notebook..."
+                                        className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border-none rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-gray-900 dark:text-gray-100"
+                                    />
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <SimpleIcon name="Search" className="h-4 w-4 text-gray-400" />
+                                    </div>
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-xs text-gray-400">
+                                        {searchResults.length > 0 ? `${currentResultIndex + 1}/${searchResults.length}` : searchQuery ? "No results" : ""}
+                                    </div>
+                                </div>
+                                <Button variant="ghost" size="icon" icon="XCircle" onClick={() => {
+                                    setIsSearchOpen(false);
+                                    setSearchQuery("");
+                                    setSearchResults([]);
+                                }} />
+                            </div>
+                        </div>
+                    )}
 
                     {/* Menus */}
                     {isMenuOpen && (
@@ -2585,22 +2798,25 @@ stdout_val = sys.stdout.getvalue()
                         )}
 
                         {cells.map((cell, index) => (
-                            <Cell 
-                                key={cell.id} 
-                                cell={cell} 
-                                index={index}
-                                updateCell={updateCell}
-                                removeCell={removeCell}
-                                moveCell={moveCell}
-                                runCell={runCell}
-                                focusNextCell={() => focusNextCell(index)}
-                                isFocused={focusedId === cell.id}
-                                setFocusedId={setFocusedId}
-                                isRuntimeReady={!isLoading && !loadError}
-                                inputRequest={inputRequest}
-                                submitInput={submitInput}
-                        triggerSave={() => performSave()}
-                            />
+                            <div id={`cell-${cell.id}`} key={cell.id} className={`${searchResults.includes(cell.id) ? 'ring-2 ring-yellow-400 dark:ring-yellow-500 rounded-lg' : ''}`}>
+                                <Cell
+                                    cell={cell}
+                                    index={index}
+                                    updateCell={updateCell}
+                                    removeCell={removeCell}
+                                    moveCell={moveCell}
+                                    runCell={runCell}
+                                    stopCell={stopCell}
+                                    focusNextCell={() => focusNextCell(index)}
+                                    isFocused={focusedId === cell.id}
+                                    setFocusedId={setFocusedId}
+                                    isRuntimeReady={!isLoading && !loadError}
+                                    inputRequest={inputRequest}
+                                    submitInput={submitInput}
+                                    triggerSave={() => performSave()}
+                                    searchQuery={searchQuery}
+                                />
+                            </div>
                         ))}
 
                         <div className="mt-8 flex justify-center space-x-4 opacity-50 hover:opacity-100 transition-opacity">
