@@ -1863,6 +1863,19 @@ def exitonclick(): _SCREEN.exitonclick()
             const [isMenuOpen, setIsMenuOpen] = useState(false);
             const [inputRequest, setInputRequest] = useState(null); // { cellId, prompt, resolve }
             const [isTurtleOpen, setIsTurtleOpen] = useState(false);
+            const [notification, setNotification] = useState(null);
+            const notificationTimeoutRef = useRef(null);
+
+            const showNotification = (msg, duration = 3000) => {
+                if (notificationTimeoutRef.current) {
+                    clearTimeout(notificationTimeoutRef.current);
+                }
+                setNotification(msg);
+                notificationTimeoutRef.current = setTimeout(() => {
+                    setNotification(null);
+                    notificationTimeoutRef.current = null;
+                }, duration);
+            };
 
             // Search State
             const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -2124,6 +2137,7 @@ def exitonclick(): _SCREEN.exitonclick()
                     setFocusedId(cells[currentIndex + 1].id);
                 } else {
                     addCell('code');
+                    showNotification("New code cell created");
                 }
             };
 
@@ -2350,7 +2364,7 @@ except Exception as e:
 result
 `);
                     
-                    if (!transformedCode) throw new Error("Transformation returned undefined code.");
+                    if (transformedCode === undefined) throw new Error("Transformation returned undefined code.");
                     
                     // Run Async
                     const result = await pyodide.runPythonAsync(transformedCode);
@@ -2857,12 +2871,16 @@ stdout_val = sys.stdout.getvalue()
                     </main>
 
                     {/* Status Notification Bubble */}
-                    {isLoading && (
+                    {(isLoading || notification) && (
                         <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
                             <div className="bg-white dark:bg-gray-800 border border-blue-100 dark:border-blue-900 shadow-lg rounded-full px-4 py-3 flex items-center space-x-3">
-                                <SimpleIcon name="Loader2" className="h-5 w-5 text-blue-600 animate-spin" />
+                                {isLoading ? (
+                                    <SimpleIcon name="Loader2" className="h-5 w-5 text-blue-600 animate-spin" />
+                                ) : (
+                                    <SimpleIcon name="CheckCircle2" className="h-5 w-5 text-green-600" />
+                                )}
                                 <div>
-                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{status}</p>
+                                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{isLoading ? status : notification}</p>
                                 </div>
                             </div>
                         </div>
