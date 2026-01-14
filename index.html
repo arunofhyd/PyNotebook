@@ -28,48 +28,66 @@
     <meta name="keywords" content="python, notebook, browser, pyodide, jupyter, client-side, webassembly, coding">
     <meta name="author" content="PyNotebook">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://pynotebookaoh.firebaseapp.com/" />
+    <link rel="canonical" href="https://pynotebooks.vercel.app/" />
+    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests; block-all-mixed-content;">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://pynotebookaoh.firebaseapp.com/">
+    <meta property="og:url" content="https://pynotebooks.vercel.app/">
     <meta property="og:title" content="PyNotebook - Python in your Browser">
     <meta property="og:description" content="Run Python code instantly in your browser. Free, secure, and powered by WebAssembly.">
-    <meta property="og:image" content="https://pynotebookaoh.firebaseapp.com/assets/logo.png">
+    <meta property="og:image" content="https://pynotebooks.vercel.app/assets/logo.png">
 
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="https://pynotebookaoh.firebaseapp.com/">
+    <meta property="twitter:url" content="https://pynotebooks.vercel.app/">
     <meta property="twitter:title" content="PyNotebook - Python in your Browser">
     <meta property="twitter:description" content="Run Python code instantly in your browser. Free, secure, and powered by WebAssembly.">
-    <meta property="twitter:image" content="https://pynotebookaoh.firebaseapp.com/assets/logo.png">
+    <meta property="twitter:image" content="https://pynotebooks.vercel.app/assets/logo.png">
 
     <!-- JSON-LD Schema -->
     <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "PyNotebook",
-      "operatingSystem": "Any",
-      "applicationCategory": "DeveloperApplication",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "description": "A browser-based Python notebook environment powered by Pyodide."
-    }
+    [
+        {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            "name": "PyNotebook",
+            "operatingSystem": "Any",
+            "applicationCategory": "DeveloperApplication",
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            },
+            "description": "A browser-based Python notebook environment powered by Pyodide.",
+            "url": "https://pynotebooks.vercel.app/",
+            "image": "https://pynotebooks.vercel.app/assets/logo.png",
+            "author": {
+                "@type": "Organization",
+                "name": "PyNotebook"
+            }
+        },
+        {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": "PyNotebook",
+            "url": "https://pynotebooks.vercel.app/",
+            "logo": "https://pynotebooks.vercel.app/assets/logo.png",
+            "sameAs": []
+        }
+    ]
     </script>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js" defer></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" defer></script>
     
     <!-- Babel (to compile JSX in browser) -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js" defer></script>
 
     <!-- Font Awesome CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -937,16 +955,16 @@ def exitonclick(): _SCREEN.exitonclick()
             };
 
             return (
-                <div className="auth-form-container screen-transition">
+                <main className="auth-form-container screen-transition">
                     <div className="w-full max-w-md">
-                        <div className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 transition-colors duration-200">
-                            <div className="text-center transform transition-all duration-300 mb-8">
+                        <section className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 transition-colors duration-200">
+                            <header className="text-center transform transition-all duration-300 mb-8">
                                 <img src="/assets/logo.png" className="w-24 h-24 mb-4 mx-auto rounded-full object-cover transition-all duration-300" alt="PyNotebook Logo" onError={(e) => e.target.style.display='none'} />
                                 <h1 className="text-4xl sm:text-5xl font-extrabold text-black dark:text-white tracking-tight mb-2 sm:mb-4 break-words transition-colors duration-300 pb-2">PyNotebook</h1>
                                 <div className="flex items-center justify-center gap-2 mb-2 sm:mb-4">
                                     <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base transition-colors duration-300">Python in your browser.</p>
                                 </div>
-                            </div>
+                            </header>
                             
                             <div className="space-y-4">
                                 <input 
@@ -1016,7 +1034,7 @@ def exitonclick(): _SCREEN.exitonclick()
                                     <i className="fas fa-spinner fa-spin"></i>
                                 ) : (
                                     <>
-                                        <img src="/assets/google.webp" alt="Google Icon" className="w-5 h-5" />
+                                        <img src="/assets/google.webp" alt="Google Icon" className="w-5 h-5" loading="lazy" />
                                         <span>Continue with Google</span>
                                     </>
                                 )}
@@ -1029,16 +1047,16 @@ def exitonclick(): _SCREEN.exitonclick()
                                 Continue as Guest
                                 <span className="block text-xs font-normal text-gray-500 dark:text-gray-400">(Saves data only on this device)</span>
                             </button>
-                        </div>
+                        </section>
 
-                        <div className="text-center mt-8">
+                        <footer className="text-center mt-8">
                             <a href="mailto:arunthomas04042001@gmail.com" className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 transition-colors dark:text-gray-400 dark:hover:text-blue-400">
                                 <i className="fas fa-envelope"></i>
                                 Contact Developer
                             </a>
-                        </div>
+                        </footer>
                     </div>
-                </div>
+                </main>
             );
         };
 
@@ -1632,13 +1650,14 @@ def exitonclick(): _SCREEN.exitonclick()
             const isError = !!cell.error;
 
             return (
-                <div 
+                <section
                     className={`group relative mb-6 rounded-lg border transition-all duration-200 ${
                         isFocused 
                         ? 'bg-white dark:bg-gray-900 ring-2 ring-blue-400 dark:ring-blue-500 shadow-md border-transparent' 
                         : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 hover:shadow-sm'
                     }`}
                     onClick={() => setFocusedId(cell.id)}
+                    aria-label={`Cell ${index + 1}`}
                 >
                     {/* Header */}
                     <div
@@ -1812,7 +1831,7 @@ def exitonclick(): _SCREEN.exitonclick()
                                                 gutter={<CopyButton onClick={() => copyToClipboard('image', imgSrc)} />}
                                                 content={
                                                     <div className="overflow-auto bg-white dark:bg-gray-800 p-2 rounded border-l-4 border-green-500 border-t border-r border-b border-gray-200 dark:border-gray-700 text-center pl-4">
-                                                        <img src={`data:image/png;base64,${imgSrc}`} alt="Plot" className="max-w-full h-auto mx-auto" />
+                                                        <img src={`data:image/png;base64,${imgSrc}`} alt="Plot" className="max-w-full h-auto mx-auto" loading="lazy" />
                                                     </div>
                                                 }
                                             />
@@ -1833,7 +1852,7 @@ def exitonclick(): _SCREEN.exitonclick()
                             </div>
                         )}
                     </div>
-                </div>
+                </section>
             );
         };
 
@@ -1868,6 +1887,15 @@ def exitonclick(): _SCREEN.exitonclick()
                     setIsAuthChecking(false);
                 }
             }, []);
+
+            // Dynamic Title
+            useEffect(() => {
+                if (user) {
+                    document.title = `PyNotebook - ${user.email}`;
+                } else {
+                    document.title = "PyNotebook - Browser Python";
+                }
+            }, [user]);
 
             const handleLogout = async () => {
                 if (user) {
@@ -2613,7 +2641,7 @@ stdout_val = sys.stdout.getvalue()
                 <div className="min-h-screen pb-24 transition-colors duration-200">
                     <header className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 z-50 flex items-center justify-between px-4 lg:px-8 shadow-sm transition-colors duration-200">
                         <div className="flex items-center space-x-3">
-                            <img src="/assets/logo.png" className="h-8 w-8" alt="PyNotebook Logo" />
+                            <img src="/assets/logo.png" className="h-8 w-8" alt="PyNotebook Logo" loading="lazy" />
                             <div>
                                 <h1 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">PyNotebook</h1>
                                 <div className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
