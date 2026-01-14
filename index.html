@@ -130,6 +130,7 @@
     <script src="https://unpkg.com/codemirror@5.65.16/lib/codemirror.js"></script>
     <script src="https://unpkg.com/codemirror@5.65.16/mode/python/python.js"></script>
     <script src="https://unpkg.com/codemirror@5.65.16/addon/display/placeholder.js"></script>
+    <script src="https://unpkg.com/codemirror@5.65.16/addon/search/searchcursor.js"></script>
 
     <!-- LZ-String for Compression -->
     <script src="https://unpkg.com/lz-string@1.5.0/libs/lz-string.min.js"></script>
@@ -395,6 +396,14 @@
         .dark .auth-form-container {
             background-image: radial-gradient(circle at 50% 50%, rgba(29, 78, 216, 0.1) 0%, transparent 60%);
         }
+
+        /* Search Highlight */
+        .search-highlight {
+            background-color: rgba(253, 224, 71, 0.5); /* yellow-300 with opacity */
+        }
+        .dark .search-highlight {
+            background-color: rgba(251, 191, 36, 0.6); /* amber-400 */
+        }
         
     </style>
 </head>
@@ -447,6 +456,7 @@
         const Icons = {
             Terminal: <g><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></g>,
             Play: <polygon points="5 3 19 12 5 21 5 3" />,
+            Square: <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />,
             Search: <g><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></g>,
             Plus: <path d="M5 12h14M12 5v14" />,
             Trash2: <g><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></g>,
@@ -1359,7 +1369,7 @@ def exitonclick(): _SCREEN.exitonclick()
             );
         };
 
-        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onBlur, showLineNumbers }) => {
+        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onBlur, showLineNumbers, searchQuery }) => {
             const editorRef = useRef(null);
             const cmInstance = useRef(null);
             const [hasError, setHasError] = useState(false);
@@ -1436,6 +1446,28 @@ def exitonclick(): _SCREEN.exitonclick()
                     cmInstance.current.setOption("lineNumbers", showLineNumbers);
                 }
             }, [showLineNumbers]);
+
+            // Sync Search Highlight
+            useEffect(() => {
+                if (!cmInstance.current) return;
+                const cm = cmInstance.current;
+
+                // Clear old marks
+                if (cm._searchMarks) {
+                    cm._searchMarks.forEach(m => m.clear());
+                }
+                cm._searchMarks = [];
+
+                if (!searchQuery) return;
+
+                // Requires searchcursor.js
+                if (cm.getSearchCursor) {
+                    const cursor = cm.getSearchCursor(searchQuery);
+                    while (cursor.findNext()) {
+                        cm._searchMarks.push(cm.markText(cursor.from(), cursor.to(), { className: "search-highlight" }));
+                    }
+                }
+            }, [searchQuery, value]);
 
             // Sync theme changes
             useEffect(() => {
@@ -1580,7 +1612,7 @@ def exitonclick(): _SCREEN.exitonclick()
             </div>
         );
 
-        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave }) => {
+        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave, searchQuery }) => {
             const textareaRef = useRef(null);
             const [inputValue, setInputValue] = useState("");
             const [codeCollapsed, setCodeCollapsed] = useState(false);
@@ -1656,16 +1688,20 @@ def exitonclick(): _SCREEN.exitonclick()
                                 gutter={
                                     <div className="flex flex-col gap-2 items-center">
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); runCell(cell.id); }}
-                                            disabled={!isRuntimeReady || cell.isRunning}
-                                            title="Run Cell"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (cell.isRunning) stopCell(cell.id);
+                                                else runCell(cell.id);
+                                            }}
+                                            disabled={!cell.isRunning && !isRuntimeReady}
+                                            title={cell.isRunning ? "Stop Execution" : "Run Cell"}
                                             className={`flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
                                                 cell.isRunning
-                                                ? 'bg-gray-100 dark:bg-gray-800 cursor-wait text-gray-500'
+                                            ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40'
                                                 : 'bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-600 dark:hover:text-green-400 text-gray-500 dark:text-gray-400'
                                             }`}
                                         >
-                                            {cell.isRunning ? <SimpleIcon name="Loader2" className="h-4 w-4 spinner" /> : <SimpleIcon name="Play" className="h-4 w-4 ml-0.5" />}
+                                        {cell.isRunning ? <SimpleIcon name="Square" className="h-3 w-3" /> : <SimpleIcon name="Play" className="h-4 w-4 ml-0.5" />}
                                         </button>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setShowLineNumbers(!showLineNumbers); }}
@@ -1690,6 +1726,7 @@ def exitonclick(): _SCREEN.exitonclick()
                                             }}
                                             onBlur={triggerSave}
                                             showLineNumbers={showLineNumbers}
+                                            searchQuery={searchQuery}
                                             className="w-full text-gray-800 dark:text-gray-200"
                                             placeholder='print("Hello Python")'
                                         />
@@ -1847,15 +1884,23 @@ def exitonclick(): _SCREEN.exitonclick()
                 }
             };
 
+            const stopCell = (id) => {
+                // 1. Check if waiting for input
+                if (inputRequest && inputRequest.cellId === id) {
+                    inputRequest.reject(new Error("KeyboardInterrupt"));
+                    setInputRequest(null);
+                }
+                // 2. Force state update
+                updateCell(id, { isRunning: false, error: "Stopped by user" });
+            };
+
             // Register global input handler for Pyodide
             useEffect(() => {
-                if (!window.pyNotebookInputHandler) {
-                    window.pyNotebookInputHandler = (cellId, promptText, title) => {
-                        return new Promise((resolve) => {
-                            setInputRequest({ cellId, prompt: promptText, title, resolve });
-                        });
-                    };
-                }
+                window.pyNotebookInputHandler = (cellId, promptText, title) => {
+                    return new Promise((resolve, reject) => {
+                        setInputRequest({ cellId, prompt: promptText, title, resolve, reject });
+                    });
+                };
             }, []);
             
             // --- Theme Logic ---
@@ -2084,6 +2129,13 @@ def exitonclick(): _SCREEN.exitonclick()
                 if (window.resetTurtleQueue) window.resetTurtleQueue();
 
                 try {
+                    // Set stream callback
+                    window.streamOutput = (text) => {
+                        updateCell(id, (prev) => ({
+                            output: (prev.output || "") + text
+                        }));
+                    };
+
                     // Inject Input Transformer and Async Input Helper
                     // Set Matplotlib style based on current theme
                     const themeSetup = isDark ? "plt.style.use('dark_background')" : "plt.style.use('default')";
@@ -2103,6 +2155,21 @@ import builtins
 import matplotlib.pyplot as plt
 import pandas as pd
 from js import window
+
+# Real-time Stdout
+class RealtimeStdout:
+    def __init__(self):
+        self.buffer = io.StringIO()
+    def write(self, text):
+        self.buffer.write(text)
+        if hasattr(window, "streamOutput"):
+             window.streamOutput(text)
+    def flush(self):
+        pass
+    def getvalue(self):
+        return self.buffer.getvalue()
+
+sys.stdout = RealtimeStdout()
 
 # Fix: Reset turtle queue to remove any 'create_turtle' events triggered by import side-effects
 if hasattr(window, "resetTurtleQueue"):
@@ -2213,7 +2280,7 @@ class AsyncTransformer(ast.NodeTransformer):
                     // Reset stdout & Clear Plots
                     // Use close('all') to ensure no empty white figures remain from previous incomplete runs or implicit creation
                     pyodide.runPython(`
-sys.stdout = io.StringIO()
+sys.stdout = RealtimeStdout()
 plt.close('all')
 `);
                     
@@ -2736,6 +2803,7 @@ stdout_val = sys.stdout.getvalue()
                                     removeCell={removeCell}
                                     moveCell={moveCell}
                                     runCell={runCell}
+                                    stopCell={stopCell}
                                     focusNextCell={() => focusNextCell(index)}
                                     isFocused={focusedId === cell.id}
                                     setFocusedId={setFocusedId}
@@ -2743,6 +2811,7 @@ stdout_val = sys.stdout.getvalue()
                                     inputRequest={inputRequest}
                                     submitInput={submitInput}
                                     triggerSave={() => performSave()}
+                                    searchQuery={searchQuery}
                                 />
                             </div>
                         ))}
