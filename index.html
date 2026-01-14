@@ -2247,78 +2247,101 @@ def get_docstring(name):
 
                         {/* Output Section */}
                         {cell.type === 'code' && hasOutput && (
-                            <div className="">
-                                {/* Toggle Row */}
-                                <CellRow
-                                    gutter={
-                                        <div className="flex flex-col items-center gap-1">
-                                            <button
-                                                onClick={() => setOutputCollapsed(!outputCollapsed)}
-                                                className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                                title={outputCollapsed ? "Show Output" : "Hide Output"}
-                                            >
-                                                <SimpleIcon name={outputCollapsed ? "EyeOff" : "Eye"} className="h-4 w-4" />
-                                            </button>
-                                            {!outputCollapsed && (
+                            <div className="mt-2">
+                                {outputCollapsed ? (
+                                    <CellRow
+                                        gutter={
+                                            <div className="flex flex-col items-center gap-1">
                                                 <button
-                                                    onClick={() => updateCell(cell.id, { output: '', error: null, images: [], html: null })}
-                                                    className="text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400 w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                                    title="Clear Output"
+                                                    onClick={() => setOutputCollapsed(false)}
+                                                    className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                                    title="Show Output"
                                                 >
-                                                    <SimpleIcon name="Eraser" className="h-4 w-4" />
+                                                    <SimpleIcon name="EyeOff" className="h-4 w-4" />
                                                 </button>
-                                            )}
-                                        </div>
-                                    }
-                                    content={
-                                        outputCollapsed ? (
+                                            </div>
+                                        }
+                                        content={
                                             <div className="text-xs text-gray-400 dark:text-gray-500 italic py-2 cursor-pointer select-none" onClick={() => setOutputCollapsed(false)}>
                                                 Output hidden
                                             </div>
-                                        ) : null
-                                    }
-                                />
-
-                                {/* Content Rows */}
-                                {!outputCollapsed && (
+                                        }
+                                    />
+                                ) : (
                                     <div className="space-y-2">
-                                        {(cell.error || cell.output) && (
-                                            <CellRow
-                                                gutter={<CopyButton onClick={() => copyToClipboard('text', cell.error || cell.output)} />}
-                                                content={
-                                                    <div className={`p-3 font-mono text-sm whitespace-pre-wrap rounded-r-md border-l-4 pl-4 ${
-                                                        isError
-                                                        ? 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-500'
-                                                        : 'bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-green-500'
-                                                    }`}>
-                                                        {isError ? <FormattedTraceback text={cell.error} /> : cell.output}
-                                                    </div>
-                                                }
-                                            />
-                                        )}
+                                        {(() => {
+                                            const items = [];
+                                            if (cell.error || cell.output) {
+                                                items.push({
+                                                    id: 'text',
+                                                    content: (
+                                                        <div className={`p-3 font-mono text-sm whitespace-pre-wrap rounded-r-md border-l-4 pl-4 ${
+                                                            isError
+                                                            ? 'bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-200 border-red-500'
+                                                            : 'bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 border-green-500'
+                                                        }`}>
+                                                            {isError ? <FormattedTraceback text={cell.error} /> : cell.output}
+                                                        </div>
+                                                    ),
+                                                    copyContent: cell.error || cell.output,
+                                                    copyType: 'text'
+                                                });
+                                            }
+                                            if (cell.images) {
+                                                cell.images.forEach((imgSrc, i) => items.push({
+                                                    id: `img-${i}`,
+                                                    content: (
+                                                        <div className="overflow-auto bg-white dark:bg-gray-800 p-2 rounded border-l-4 border-green-500 border-t border-r border-b border-gray-200 dark:border-gray-700 text-center pl-4">
+                                                            <img src={`data:image/png;base64,${imgSrc}`} alt="Plot" className="max-w-full h-auto mx-auto" loading="lazy" />
+                                                        </div>
+                                                    ),
+                                                    copyContent: imgSrc,
+                                                    copyType: 'image'
+                                                }));
+                                            }
+                                            if (cell.html) {
+                                                items.push({
+                                                    id: 'html',
+                                                    content: (
+                                                        <div className="overflow-x-auto bg-white dark:bg-gray-800 p-4 rounded border-l-4 border-green-500 border-t border-r border-b border-gray-200 dark:border-gray-700 pl-4">
+                                                            <div dangerouslySetInnerHTML={{ __html: cell.html }} className="prose dark:prose-invert max-w-none text-sm" />
+                                                        </div>
+                                                    ),
+                                                    copyContent: cell.html,
+                                                    copyType: 'html'
+                                                });
+                                            }
 
-                                        {cell.images && cell.images.map((imgSrc, i) => (
-                                            <CellRow
-                                                key={`img-${i}`}
-                                                gutter={<CopyButton onClick={() => copyToClipboard('image', imgSrc)} />}
-                                                content={
-                                                    <div className="overflow-auto bg-white dark:bg-gray-800 p-2 rounded border-l-4 border-green-500 border-t border-r border-b border-gray-200 dark:border-gray-700 text-center pl-4">
-                                                        <img src={`data:image/png;base64,${imgSrc}`} alt="Plot" className="max-w-full h-auto mx-auto" loading="lazy" />
-                                                    </div>
-                                                }
-                                            />
-                                        ))}
-
-                                        {cell.html && (
-                                            <CellRow
-                                                gutter={<CopyButton onClick={() => copyToClipboard('html', cell.html)} />}
-                                                content={
-                                                    <div className="overflow-x-auto bg-white dark:bg-gray-800 p-4 rounded border-l-4 border-green-500 border-t border-r border-b border-gray-200 dark:border-gray-700 pl-4">
-                                                        <div dangerouslySetInnerHTML={{ __html: cell.html }} className="prose dark:prose-invert max-w-none text-sm" />
-                                                    </div>
-                                                }
-                                            />
-                                        )}
+                                            return items.map((item, idx) => (
+                                                <CellRow
+                                                    key={item.id}
+                                                    gutter={
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            {idx === 0 && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => setOutputCollapsed(true)}
+                                                                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                                                        title="Hide Output"
+                                                                    >
+                                                                        <SimpleIcon name="Eye" className="h-4 w-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => updateCell(cell.id, { output: '', error: null, images: [], html: null })}
+                                                                        className="text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400 w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                                        title="Clear Output"
+                                                                    >
+                                                                        <SimpleIcon name="Eraser" className="h-4 w-4" />
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                            <CopyButton onClick={() => copyToClipboard(item.copyType, item.copyContent)} />
+                                                        </div>
+                                                    }
+                                                    content={item.content}
+                                                />
+                                            ));
+                                        })()}
                                     </div>
                                 )}
                             </div>
