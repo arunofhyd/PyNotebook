@@ -1455,10 +1455,17 @@ def exitonclick(): _SCREEN.exitonclick()
             );
         };
 
-        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onRunAndInsert, onBlur, showLineNumbers, searchQuery, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown }) => {
+        const CodeEditor = ({ value, onChange, placeholder, className, onRun, onRunAndAdvance, onRunAndInsert, onBlur, showLineNumbers, searchQuery, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown, visible = true }) => {
             const editorRef = useRef(null);
             const cmInstance = useRef(null);
             const [hasError, setHasError] = useState(false);
+
+            // Refresh CodeMirror when visibility changes (fixes empty cell issue)
+            useEffect(() => {
+                if (visible && cmInstance.current) {
+                    setTimeout(() => cmInstance.current.refresh(), 10);
+                }
+            }, [visible]);
             
             // Latest props ref to avoid stale closures in CodeMirror handlers
             const handlersRef = useRef({ onRun, onRunAndAdvance, onRunAndInsert, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown });
@@ -1864,6 +1871,7 @@ def exitonclick(): _SCREEN.exitonclick()
                                 content={
                                     <div className={cell.codeCollapsed ? 'hidden' : 'block'}>
                                         <CodeEditor
+                                            visible={!cell.codeCollapsed}
                                             value={cell.content}
                                             onChange={(newContent) => updateCell(cell.id, { content: newContent })}
                                             onRun={() => runCell(cell.id)}
