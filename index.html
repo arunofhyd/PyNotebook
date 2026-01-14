@@ -1392,6 +1392,13 @@ def exitonclick(): _SCREEN.exitonclick()
             const cmInstance = useRef(null);
             const [hasError, setHasError] = useState(false);
             
+            // Latest props ref to avoid stale closures in CodeMirror handlers
+            const handlersRef = useRef({ onRun, onRunAndAdvance, onRunAndInsert, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown });
+
+            useEffect(() => {
+                handlersRef.current = { onRun, onRunAndAdvance, onRunAndInsert, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown };
+            }, [onRun, onRunAndAdvance, onRunAndInsert, onInsertAbove, onInsertBelow, onDelete, onMoveUp, onMoveDown, onConvertCode, onConvertMarkdown]);
+
             // Theme detection for CodeMirror
             const isDark = document.documentElement.classList.contains('dark');
 
@@ -1415,44 +1422,47 @@ def exitonclick(): _SCREEN.exitonclick()
                     placeholder: placeholder,
                     viewportMargin: Infinity, // Auto-height
                     extraKeys: {
-                        "Shift-Enter": () => {
-                            if (onRunAndAdvance) onRunAndAdvance();
-                        },
-                        "Ctrl-Enter": () => {
-                            if (onRun) onRun();
-                        },
-                        "Alt-Enter": () => {
-                             if (onRunAndInsert) onRunAndInsert();
-                        },
+                        "Shift-Enter": () => handlersRef.current.onRunAndAdvance && handlersRef.current.onRunAndAdvance(),
+                        "Cmd-Shift-Enter": () => handlersRef.current.onRunAndAdvance && handlersRef.current.onRunAndAdvance(),
+
+                        "Ctrl-Enter": () => handlersRef.current.onRun && handlersRef.current.onRun(),
+                        "Cmd-Enter": () => handlersRef.current.onRun && handlersRef.current.onRun(),
+
+                        "Alt-Enter": () => handlersRef.current.onRunAndInsert && handlersRef.current.onRunAndInsert(),
+
                         "Tab": (cm) => {
                             cm.replaceSelection("    ", "end");
                         },
-                        "Ctrl-M": (cm) => {
-                            // Colab Command Mode
-                            const keyHandler = (e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const key = e.key.toLowerCase();
-
-                                switch(key) {
-                                    case 'a': if (onInsertAbove) onInsertAbove(); break;
-                                    case 'b': if (onInsertBelow) onInsertBelow(); break;
-                                    case 'd': if (onDelete) onDelete(); break;
-                                    case 'k': if (onMoveUp) onMoveUp(); break;
-                                    case 'j': if (onMoveDown) onMoveDown(); break;
-                                    case 'y': if (onConvertCode) onConvertCode(); break;
-                                    case 'm': if (onConvertMarkdown) onConvertMarkdown(); break;
-                                    default: break;
-                                }
-
-                                // Remove listener after one key press
-                                document.removeEventListener('keydown', keyHandler, { capture: true });
-                            };
-
-                            document.addEventListener('keydown', keyHandler, { capture: true, once: true });
-                        }
+                        "Ctrl-M": (cm) => enterCommandMode(),
+                        "Cmd-M": (cm) => enterCommandMode()
                     }
                 });
+
+                const enterCommandMode = () => {
+                    // Colab Command Mode
+                    const keyHandler = (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const key = e.key.toLowerCase();
+                        const h = handlersRef.current;
+
+                        switch(key) {
+                            case 'a': if (h.onInsertAbove) h.onInsertAbove(); break;
+                            case 'b': if (h.onInsertBelow) h.onInsertBelow(); break;
+                            case 'd': if (h.onDelete) h.onDelete(); break;
+                            case 'k': if (h.onMoveUp) h.onMoveUp(); break;
+                            case 'j': if (h.onMoveDown) h.onMoveDown(); break;
+                            case 'y': if (h.onConvertCode) h.onConvertCode(); break;
+                            case 'm': if (h.onConvertMarkdown) h.onConvertMarkdown(); break;
+                            default: break;
+                        }
+
+                        // Remove listener after one key press
+                        document.removeEventListener('keydown', keyHandler, { capture: true });
+                    };
+
+                    document.addEventListener('keydown', keyHandler, { capture: true, once: true });
+                };
 
                 cm.on("change", (instance) => {
                     const val = instance.getValue();
@@ -1722,7 +1732,7 @@ def exitonclick(): _SCREEN.exitonclick()
                                 onChange={(e) => updateCell(cell.id, { content: e.target.value })}
                                 onBlur={triggerSave}
                                 onKeyDown={(e) => {
-                                    if (e.key.toLowerCase() === 'm' && e.ctrlKey) {
+                                    if (e.key.toLowerCase() === 'm' && (e.ctrlKey || e.metaKey)) {
                                         e.preventDefault();
                                         // Command Mode logic for Markdown
                                         const keyHandler = (ev) => {
