@@ -2486,21 +2486,21 @@ def get_docstring(name):
 
             // --- Notebook State ---
             const [cells, setCells] = useState([
-                {
-                    id: '1',
-                    type: 'markdown',
-                    content: '# Welcome to PyNotebook 🐍\n\n**PyNotebook** runs Python entirely in your browser using Pyodide. No server setup required!\n\n### Key Features:\n- **Data Science:** `numpy`, `pandas`, and `matplotlib` are pre-loaded.\n- **Privacy:** Your code runs locally.\n- **Interactivity:** Support for `input()` and interactive Turtle graphics.',
-                    output: '',
-                    error: null,
-                    isRunning: false
+                { 
+                    id: '1', 
+                    type: 'markdown', 
+                    content: '# 🏁 Turtle Race & Analytics Demo\n\nThis notebook demonstrates the power of **PyNotebook** by combining three key features in a single script:\n\n1. **Interactive Turtle Graphics** 🐢: A visual race simulation.\n2. **Rich Graphing** 📊: Using `matplotlib` to visualize the results.\n3. **Magic HTML** ✨: Displaying a `pandas` DataFrame as a styled leaderboard.\n\nClick **Run** on the cell below to start the race!', 
+                    output: '', 
+                    error: null, 
+                    isRunning: false 
                 },
-                {
-                    id: '2',
-                    type: 'code',
-                    content: 'import numpy as np\nimport pandas as pd\nimport matplotlib.pyplot as plt\n\n# 1. Create a DataFrame\ndf = pd.DataFrame({\n    "x": np.linspace(0, 10, 100),\n    "y": np.sin(np.linspace(0, 10, 100))\n})\n\n# 2. Plot the data\nplt.figure(figsize=(10, 5))\nplt.plot(df["x"], df["y"], label="Sine Wave", color="#3b82f6")\nplt.title("Interactive Plotting with Matplotlib")\nplt.xlabel("Time")\nplt.ylabel("Amplitude")\nplt.grid(True, alpha=0.3)\nplt.legend()\nplt.show()\n\n# 3. Print a summary\nprint(f"Generated {len(df)} data points.")\nprint("First 5 rows:")\ndf.head()',
-                    output: '',
-                    error: null,
-                    isRunning: false
+                { 
+                    id: '2', 
+                    type: 'code', 
+                    content: 'import turtle\nimport random\nimport pandas as pd\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# --- 1. Setup & Run Turtle Race ---\nturtles = []\ncolors = ["red", "blue", "green", "orange", "purple"]\ny_positions = [60, 30, 0, -30, -60]\n\nturtle.clear()\nturtle.speed(0) # Fast setup\n\n# Draw finish line\nturtle.penup()\nturtle.goto(150, 100)\nturtle.pendown()\nturtle.goto(150, -100)\nturtle.penup()\n\n# Create turtles\nprint("🏁 The race is starting! Watch the popup window...")\nfor i, color in enumerate(colors):\n    t = turtle.Turtle(shape="turtle")\n    t.color(color)\n    t.penup()\n    t.goto(-150, y_positions[i])\n    turtles.append(t)\n\n# Run Race (Simulate steps)\ndistances = [0] * len(colors)\nfor _ in range(15): # 15 moves per turtle\n    for i, t in enumerate(turtles):\n        step = random.randint(5, 20)\n        t.forward(step)\n        distances[i] += step\n\n# --- 2. Rich Graph (Matplotlib) ---\nprint("\\n📊 Generating Performance Analytics...")\nplt.figure(figsize=(10, 5))\nplt.bar(colors, distances, color=colors, alpha=0.7)\nplt.title("Turtle Race Results: Distance Covered")\nplt.xlabel("Contestant")\nplt.ylabel("Distance (Units)")\nplt.grid(axis="y", alpha=0.3)\nplt.show()\n\n# --- 3. Magic HTML (Leaderboard) ---\nprint("\\n🏆 Official Leaderboard:")\ndf = pd.DataFrame({\n    "Turtle": colors,\n    "Distance": distances,\n    "Speed_Rank": ["Fast", "Average", "Slow", "Light", "Turbo"] # Mock data\n})\n\n# Sort by Distance to determine rank\ndf = df.sort_values("Distance", ascending=False).reset_index(drop=True)\ndf.index += 1\ndf.index.name = "Rank"\n\n# Display DataFrame (renders as HTML table)\ndf', 
+                    output: '', 
+                    error: null, 
+                    isRunning: false 
                 },
             ]);
 
