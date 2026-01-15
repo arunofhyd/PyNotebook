@@ -56,3 +56,10 @@ This project uses the following libraries via CDN (no build step required):
 
 ## 📄 License
 MIT License. Free for personal and educational use.
+
+---
+
+<p align="center">
+  Made with ❤️ by <a href="mailto:arunthomas04042001@gmail.com">Arun Thomas</a>
+</p>
+
