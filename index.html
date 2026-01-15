@@ -2489,7 +2489,7 @@ def get_docstring(name):
                 { 
                     id: '1', 
                     type: 'markdown', 
-                    content: '# 🏁 Turtle Race & Analytics Demo\n\nThis notebook demonstrates the power of **PyNotebook** by combining three key features in a single script:\n\n1. **Interactive Turtle Graphics** 🐢: A visual race simulation.\n2. **Rich Graphing** 📊: Using `matplotlib` to visualize the results.\n3. **Magic HTML** ✨: Displaying a `pandas` DataFrame as a styled leaderboard.\n\nClick **Run** on the cell below to start the race!', 
+                    content: '# 🚀 PyNotebook Features Demo\n\nWelcome! This notebook showcases the unique capabilities of **PyNotebook**:\n\n1. **🐢 Turtle Graphics**: Real-time animations.\n2. **📊 Rich Visualization**: Matplotlib graphs & Pandas DataFrames.\n3. **💬 Interactive Input**: Non-blocking `input()` calls.\n4. **✨ Magic HTML**: Render custom HTML/CSS with `%%html`.\n\nClick **Run All** to see everything in action!', 
                     output: '', 
                     error: null, 
                     isRunning: false 
@@ -2497,7 +2497,23 @@ def get_docstring(name):
                 { 
                     id: '2', 
                     type: 'code', 
-                    content: 'import turtle\nimport random\nimport pandas as pd\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# --- 1. Setup & Run Turtle Race ---\nturtles = []\ncolors = ["red", "blue", "green", "orange", "purple"]\ny_positions = [60, 30, 0, -30, -60]\n\nturtle.clear()\nturtle.speed(0) # Fast setup\n\n# Draw finish line\nturtle.penup()\nturtle.goto(150, 100)\nturtle.pendown()\nturtle.goto(150, -100)\nturtle.penup()\n\n# Create turtles\nprint("🏁 The race is starting! Watch the popup window...")\nfor i, color in enumerate(colors):\n    t = turtle.Turtle(shape="turtle")\n    t.color(color)\n    t.penup()\n    t.goto(-150, y_positions[i])\n    turtles.append(t)\n\n# Run Race (Simulate steps)\ndistances = [0] * len(colors)\nfor _ in range(15): # 15 moves per turtle\n    for i, t in enumerate(turtles):\n        step = random.randint(5, 20)\n        t.forward(step)\n        distances[i] += step\n\n# --- 2. Rich Graph (Matplotlib) ---\nprint("\\n📊 Generating Performance Analytics...")\nplt.figure(figsize=(10, 5))\nplt.bar(colors, distances, color=colors, alpha=0.7)\nplt.title("Turtle Race Results: Distance Covered")\nplt.xlabel("Contestant")\nplt.ylabel("Distance (Units)")\nplt.grid(axis="y", alpha=0.3)\nplt.show()\n\n# --- 3. Magic HTML (Leaderboard) ---\nprint("\\n🏆 Official Leaderboard:")\ndf = pd.DataFrame({\n    "Turtle": colors,\n    "Distance": distances,\n    "Speed_Rank": ["Fast", "Average", "Slow", "Light", "Turbo"] # Mock data\n})\n\n# Sort by Distance to determine rank\ndf = df.sort_values("Distance", ascending=False).reset_index(drop=True)\ndf.index += 1\ndf.index.name = "Rank"\n\n# Display DataFrame (renders as HTML table)\ndf', 
+                    content: 'import turtle\nimport random\nimport pandas as pd\nimport matplotlib.pyplot as plt\nimport numpy as np\n\n# --- 1. Setup & Run Turtle Race ---\nturtles = []\ncolors = ["red", "blue", "green", "orange", "purple"]\ny_positions = [60, 30, 0, -30, -60]\n\nturtle.clear()\nturtle.speed(0) # Fast setup\n\n# Draw finish line\nturtle.penup()\nturtle.goto(150, 100)\nturtle.pendown()\nturtle.goto(150, -100)\nturtle.penup()\n\n# Create turtles\nprint("🏁 The race is starting! Watch the popup window...")\nfor i, color in enumerate(colors):\n    t = turtle.Turtle(shape="turtle")\n    t.color(color)\n    t.penup()\n    t.goto(-150, y_positions[i])\n    turtles.append(t)\n\n# Run Race (Simulate steps)\ndistances = [0] * len(colors)\nfor _ in range(15): # 15 moves per turtle\n    for i, t in enumerate(turtles):\n        step = random.randint(5, 20)\n        t.forward(step)\n        distances[i] += step\n\n# --- 2. Rich Graph (Matplotlib) ---\nprint("\\n📊 Generating Performance Analytics...")\nplt.figure(figsize=(10, 5))\nplt.bar(colors, distances, color=colors, alpha=0.7)\nplt.title("Turtle Race Results: Distance Covered")\nplt.xlabel("Contestant")\nplt.ylabel("Distance (Units)")\nplt.grid(axis="y", alpha=0.3)\nplt.show()\n\n# --- 3. Rich Data Display (Pandas) ---\nprint("\\n🏆 Official Leaderboard:")\ndf = pd.DataFrame({\n    "Turtle": colors,\n    "Distance": distances,\n    "Speed_Rank": ["Fast", "Average", "Slow", "Light", "Turbo"] # Mock data\n})\n\n# Sort by Distance to determine rank\ndf = df.sort_values("Distance", ascending=False).reset_index(drop=True)\ndf.index += 1\ndf.index.name = "Rank"\n\n# Display DataFrame (renders as HTML table)\ndf', 
+                    output: '', 
+                    error: null, 
+                    isRunning: false 
+                },
+                { 
+                    id: '3', 
+                    type: 'code', 
+                    content: '# --- 4. Interactive Input 💬 ---\n# PyNotebook supports standard input() calls without freezing the browser!\n# Try running this cell and checking the prompt.\n\nuser_bet = input("Which turtle color do you think won? (red/blue/green...)")\nprint(f"You bet on {user_bet}. Let\'s see if you were right!")', 
+                    output: '', 
+                    error: null, 
+                    isRunning: false 
+                },
+                { 
+                    id: '4', 
+                    type: 'code', 
+                    content: '%%html\n<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px; color: white; text-align: center; font-family: sans-serif; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">\n    <h2 style="margin: 0; font-size: 24px; font-weight: bold;">✨ Magic HTML Support</h2>\n    <p style="margin: 10px 0 0; opacity: 0.9; font-size: 16px;">\n        You can render raw <strong>HTML</strong> & <strong>CSS</strong> directly in your notebook!\n    </p>\n    <button style="margin-top: 15px; background: white; color: #764ba2; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer;">\n        Pretty Cool?\n    </button>\n</div>', 
                     output: '', 
                     error: null, 
                     isRunning: false 
