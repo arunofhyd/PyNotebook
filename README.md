@@ -46,32 +46,6 @@ Unlike traditional notebooks that require a backend server, PyNotebook executes 
     *   Collapsible Code & Output cells.
     *   Rich output rendering (DataFrames, Plots, HTML).
 
-## 🛠️ Usage
-
-### Local Development
-Since Pyodide requires CORS compliance for loading packages, you cannot run this file directly via `file://` protocol.
-
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/pynotebook.git
-    cd pynotebook
-    ```
-
-2.  **Start a local server:**
-    ```bash
-    python -m http.server 8000
-    ```
-
-3.  **Open in Browser:**
-    Go to `http://localhost:8000`
-
-### Deployment
-PyNotebook is a static web app. You can deploy `index.html` and the `assets` folder to any static host:
-*   GitHub Pages
-*   Vercel
-*   Netlify
-*   Firebase Hosting
-
 ## 📦 Dependencies
 This project uses the following libraries via CDN (no build step required):
 *   **React 18** (UI Framework)
