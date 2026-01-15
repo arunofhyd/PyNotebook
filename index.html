@@ -2486,8 +2486,22 @@ def get_docstring(name):
 
             // --- Notebook State ---
             const [cells, setCells] = useState([
-                { id: '1', type: 'markdown', content: '# Welcome to PyNotebook\nThis runs Python entirely in your browser using Pyodide. No server required!\nLibraries pre-loaded: `numpy`, `pandas`, `matplotlib`.', output: '', error: null, isRunning: false },
-                { id: '2', type: 'code', content: 'import numpy as np\n\nprint("Hello from Python!")\nprint(f"Numpy version: {np.__version__}")\n\n# Variables persist between cells\nx = 42', output: '', error: null, isRunning: false },
+                {
+                    id: '1',
+                    type: 'markdown',
+                    content: '# Welcome to PyNotebook 🐍\n\n**PyNotebook** runs Python entirely in your browser using Pyodide. No server setup required!\n\n### Key Features:\n- **Data Science:** `numpy`, `pandas`, and `matplotlib` are pre-loaded.\n- **Privacy:** Your code runs locally.\n- **Interactivity:** Support for `input()` and interactive Turtle graphics.',
+                    output: '',
+                    error: null,
+                    isRunning: false
+                },
+                {
+                    id: '2',
+                    type: 'code',
+                    content: 'import numpy as np\nimport pandas as pd\nimport matplotlib.pyplot as plt\n\n# 1. Create a DataFrame\ndf = pd.DataFrame({\n    "x": np.linspace(0, 10, 100),\n    "y": np.sin(np.linspace(0, 10, 100))\n})\n\n# 2. Plot the data\nplt.figure(figsize=(10, 5))\nplt.plot(df["x"], df["y"], label="Sine Wave", color="#3b82f6")\nplt.title("Interactive Plotting with Matplotlib")\nplt.xlabel("Time")\nplt.ylabel("Amplitude")\nplt.grid(True, alpha=0.3)\nplt.legend()\nplt.show()\n\n# 3. Print a summary\nprint(f"Generated {len(df)} data points.")\nprint("First 5 rows:")\ndf.head()',
+                    output: '',
+                    error: null,
+                    isRunning: false
+                },
             ]);
 
             // --- Persistence Logic ---
