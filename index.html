@@ -596,6 +596,8 @@
             Moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
             Download: <g><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></g>,
             Upload: <g><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></g>,
+            Paperclip: <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />,
+            FileUp: <g><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><path d="M12 12v6" /><path d="M9 15l3-3 3 3" /></g>,
             Menu: <g><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></g>,
             LogOut: <g><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></g>,
             Copy: <g><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></g>,
@@ -2059,6 +2061,7 @@ def get_docstring(name):
 
         const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave, searchQuery, onInsertAbove, onInsertBelow, onConvertCode, onConvertMarkdown, completionEngine }) => {
             const textareaRef = useRef(null);
+            const fileInputRef = useRef(null);
             const [inputValue, setInputValue] = useState("");
             const [outputCollapsed, setOutputCollapsed] = useState(false);
             const [showLineNumbers, setShowLineNumbers] = useState(false);
@@ -2106,6 +2109,80 @@ def get_docstring(name):
                         </div>
                         
                         <div className="flex items-center space-x-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                           <Button
+                                variant="ghost"
+                                size="icon"
+                                icon="Paperclip"
+                                title="Import File Content (Replace current)"
+                                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                           />
+                           <input
+                                ref={fileInputRef}
+                                type="file"
+                                className="hidden"
+                                onClick={(e) => { e.stopPropagation(); }}
+                                onChange={async (e) => {
+                                    const file = e.target.files[0];
+                                    if (!file) return;
+
+                                    if (cell.content && cell.content.trim().length > 0) {
+                                        if (!window.confirm("Importing a file will replace the current cell content. Continue?")) {
+                                            e.target.value = '';
+                                            return;
+                                        }
+                                    }
+
+                                    try {
+                                        const name = file.name;
+                                        const ext = name.split('.').pop().toLowerCase();
+                                        let newContent = "";
+
+                                        // Data Files -> Upload to FS & Generate Code
+                                        if (['csv', 'json', 'xlsx', 'xls', 'parquet'].includes(ext)) {
+                                            if (!pyodide) {
+                                                alert("Runtime not ready yet. Please wait.");
+                                                return;
+                                            }
+                                            const buffer = await file.arrayBuffer();
+                                            const data = new Uint8Array(buffer);
+                                            pyodide.FS.writeFile(name, data);
+
+                                            if (ext === 'csv') {
+                                                newContent = `import pandas as pd\n\n# Read ${name}\ndf = pd.read_csv('${name}')\ndf`;
+                                            } else if (ext === 'json') {
+                                                newContent = `import pandas as pd\n\n# Read ${name}\ndf = pd.read_json('${name}')\ndf`;
+                                            } else if (ext === 'parquet') {
+                                                newContent = `import pandas as pd\n\n# Read ${name}\ndf = pd.read_parquet('${name}')\ndf`;
+                                            } else {
+                                                // Excel requires openpyxl, might not be installed.
+                                                newContent = `import pandas as pd\n\n# Read ${name} (Requires openpyxl)\n# await micropip.install('openpyxl')\ndf = pd.read_excel('${name}')\ndf`;
+                                            }
+                                            showNotification(`Uploaded ${name} to runtime`);
+                                        }
+                                        // Text/Code Files -> Load Content Directly
+                                        else if (['py', 'txt', 'md', 'js', 'html', 'css'].includes(ext)) {
+                                            newContent = await file.text();
+                                        }
+                                        // Default -> Upload to FS & Generic Open
+                                        else {
+                                            if (pyodide) {
+                                                const buffer = await file.arrayBuffer();
+                                                pyodide.FS.writeFile(name, new Uint8Array(buffer));
+                                                newContent = `# File uploaded: ${name}\nwith open('${name}', 'rb') as f:\n    data = f.read()\n    print(f"Loaded {len(data)} bytes")`;
+                                                showNotification(`Uploaded ${name} to runtime`);
+                                            } else {
+                                                // Fallback if pyodide not ready, just try text
+                                                newContent = await file.text();
+                                            }
+                                        }
+
+                                        updateCell(cell.id, { content: newContent });
+                                        e.target.value = ''; // Reset
+                                    } catch (err) {
+                                        alert("Failed to import file: " + err.message);
+                                    }
+                                }}
+                           />
                            <Button variant="ghost" size="icon" icon="MoveUp" onClick={(e) => { e.stopPropagation(); moveCell(index, -1); }} disabled={index === 0} />
                            <Button variant="ghost" size="icon" icon="MoveDown" onClick={(e) => { e.stopPropagation(); moveCell(index, 1); }} />
                            <Button variant="ghost" size="icon" icon="Trash2" className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300" onClick={(e) => { e.stopPropagation(); removeCell(cell.id); }} />
@@ -2760,14 +2837,10 @@ def get_docstring(name):
 
                 // Handle Magics
                 const trimmed = cellToRun.content.trim();
-                if (trimmed.startsWith('%%html')) {
-                    const htmlContent = trimmed.substring(6); // Remove %%html (keeping whitespace/newlines)
-                    // Or better, remove first line? Colab usually treats the rest as HTML.
-                    // %%html
-                    // <div>...</div>
-                    // But if they write %%html <div>...</div> on same line?
-                    // Let's just remove the magic.
 
+                // 1. %%html Magic
+                if (trimmed.startsWith('%%html')) {
+                    const htmlContent = trimmed.substring(6);
                     updateCell(id, {
                         isRunning: false,
                         output: '',
@@ -2775,6 +2848,34 @@ def get_docstring(name):
                         html: htmlContent
                     });
                     return true;
+                }
+
+                // 2. Pip Install Magic (!pip or %pip)
+                if (trimmed.startsWith('!pip') || trimmed.startsWith('%pip')) {
+                    updateCell(id, { isRunning: true, output: '', error: null, images: [], html: null });
+                    try {
+                        const args = trimmed.split(/\s+/).slice(1); // ['install', 'pandas', 'numpy']
+                        // Simple parser: look for 'install' and then package names
+                        if (args[0] === 'install') {
+                             const packages = args.slice(1).filter(a => !a.startsWith('-')); // Ignore flags for now
+                             if (packages.length > 0) {
+                                 updateCell(id, { output: `Installing ${packages.join(', ')}...\n` });
+                                 await pyodide.loadPackage("micropip");
+                                 const micropip = pyodide.pyimport("micropip");
+                                 await micropip.install(packages);
+                                 updateCell(id, { output: `Successfully installed: ${packages.join(', ')}\n` });
+                             } else {
+                                 updateCell(id, { output: "Usage: !pip install <package_name>\n" });
+                             }
+                        } else {
+                             updateCell(id, { output: "Only 'pip install' is currently supported.\n" });
+                        }
+                        updateCell(id, { isRunning: false });
+                        return true;
+                    } catch (err) {
+                        updateCell(id, { isRunning: false, error: err.toString() });
+                        return false;
+                    }
                 }
 
                 // Reset Turtle Queue
@@ -2824,7 +2925,23 @@ class RealtimeStdout:
     def getvalue(self):
         return self.buffer.getvalue()
 
+class RealtimeStderr:
+    def __init__(self):
+        self.buffer = io.StringIO()
+    def write(self, text):
+        self.buffer.write(text)
+        # We can stream stderr similarly, maybe wrap in a warning style if possible?
+        # For now, stream as regular output but maybe we can prefix or style later.
+        # Just streaming ensures visibility.
+        if hasattr(window, "streamOutput"):
+             window.streamOutput(text)
+    def flush(self):
+        pass
+    def getvalue(self):
+        return self.buffer.getvalue()
+
 sys.stdout = RealtimeStdout()
+sys.stderr = RealtimeStderr()
 
 # Fix: Reset turtle queue to remove any 'create_turtle' events triggered by import side-effects
 if hasattr(window, "resetTurtleQueue"):
@@ -3012,6 +3129,13 @@ if last_result is not None:
         # Note: In JS we checked !== undefined/null, but pyodide might map those.
         # But here last_result is a Python object.
         sys.stdout.write(str(last_result))
+
+# Merge Stderr into Stdout for final display (so it doesn't vanish)
+stderr_val = sys.stderr.getvalue()
+if stderr_val:
+    if sys.stdout.getvalue():
+        sys.stdout.write('\\n')
+    sys.stdout.write(stderr_val)
 
 # Check plots
 if plt.get_fignums():
@@ -3229,6 +3353,13 @@ stdout_val = sys.stdout.getvalue()
                     </button>
                     <div className="border-t border-gray-100 dark:border-gray-800 my-1"></div>
                     <button
+                        onClick={() => { document.getElementById('file-upload-input').click(); setIsMenuOpen(false); }}
+                        className="flex lg:hidden items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
+                    >
+                        <SimpleIcon name="Paperclip" className="mr-3 h-4 w-4" />
+                        Upload File to Runtime
+                    </button>
+                    <button
                         onClick={() => { backupNotebook(); setIsMenuOpen(false); }}
                         className="flex items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
                     >
@@ -3383,6 +3514,32 @@ stdout_val = sys.stdout.getvalue()
                                 onClick={toggleTheme} 
                                 title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                             />
+                            <button
+                                onClick={() => document.getElementById('file-upload-input').click()}
+                                className="focus:outline-none transition-opacity hover:opacity-80 p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hidden lg:block"
+                                title="Upload File to Runtime"
+                            >
+                                <SimpleIcon name="FileUp" className="h-5 w-5" />
+                            </button>
+                            <input
+                                type="file"
+                                id="file-upload-input"
+                                className="hidden"
+                                onChange={async (e) => {
+                                    const file = e.target.files[0];
+                                    if (!file || !pyodide) return;
+                                    try {
+                                        const buffer = await file.arrayBuffer();
+                                        const data = new Uint8Array(buffer);
+                                        pyodide.FS.writeFile(file.name, data);
+                                        showNotification(`Uploaded: ${file.name}`);
+                                        e.target.value = ''; // Reset
+                                    } catch (err) {
+                                        showNotification(`Upload Failed: ${err.message}`);
+                                    }
+                                }}
+                            />
+
                             <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
 
                             <button
