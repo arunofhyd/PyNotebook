@@ -2120,7 +2120,6 @@ def get_docstring(name):
                                 ref={fileInputRef}
                                 type="file"
                                 className="hidden"
-                                accept=".py,.txt,.md,.csv,.json,.js,.html"
                                 onClick={(e) => { e.stopPropagation(); }}
                                 onChange={async (e) => {
                                     const file = e.target.files[0];
@@ -2134,11 +2133,53 @@ def get_docstring(name):
                                     }
 
                                     try {
-                                        const text = await file.text();
-                                        updateCell(cell.id, { content: text });
+                                        const name = file.name;
+                                        const ext = name.split('.').pop().toLowerCase();
+                                        let newContent = "";
+
+                                        // Data Files -> Upload to FS & Generate Code
+                                        if (['csv', 'json', 'xlsx', 'xls', 'parquet'].includes(ext)) {
+                                            if (!pyodide) {
+                                                alert("Runtime not ready yet. Please wait.");
+                                                return;
+                                            }
+                                            const buffer = await file.arrayBuffer();
+                                            const data = new Uint8Array(buffer);
+                                            pyodide.FS.writeFile(name, data);
+
+                                            if (ext === 'csv') {
+                                                newContent = `import pandas as pd\n\n# Read ${name}\ndf = pd.read_csv('${name}')\ndf`;
+                                            } else if (ext === 'json') {
+                                                newContent = `import pandas as pd\n\n# Read ${name}\ndf = pd.read_json('${name}')\ndf`;
+                                            } else if (ext === 'parquet') {
+                                                newContent = `import pandas as pd\n\n# Read ${name}\ndf = pd.read_parquet('${name}')\ndf`;
+                                            } else {
+                                                // Excel requires openpyxl, might not be installed.
+                                                newContent = `import pandas as pd\n\n# Read ${name} (Requires openpyxl)\n# await micropip.install('openpyxl')\ndf = pd.read_excel('${name}')\ndf`;
+                                            }
+                                            showNotification(`Uploaded ${name} to runtime`);
+                                        }
+                                        // Text/Code Files -> Load Content Directly
+                                        else if (['py', 'txt', 'md', 'js', 'html', 'css'].includes(ext)) {
+                                            newContent = await file.text();
+                                        }
+                                        // Default -> Upload to FS & Generic Open
+                                        else {
+                                            if (pyodide) {
+                                                const buffer = await file.arrayBuffer();
+                                                pyodide.FS.writeFile(name, new Uint8Array(buffer));
+                                                newContent = `# File uploaded: ${name}\nwith open('${name}', 'rb') as f:\n    data = f.read()\n    print(f"Loaded {len(data)} bytes")`;
+                                                showNotification(`Uploaded ${name} to runtime`);
+                                            } else {
+                                                // Fallback if pyodide not ready, just try text
+                                                newContent = await file.text();
+                                            }
+                                        }
+
+                                        updateCell(cell.id, { content: newContent });
                                         e.target.value = ''; // Reset
                                     } catch (err) {
-                                        alert("Failed to read file: " + err.message);
+                                        alert("Failed to import file: " + err.message);
                                     }
                                 }}
                            />
