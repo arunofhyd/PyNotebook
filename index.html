@@ -2878,6 +2878,8 @@ class CallGraphWalker(ast.NodeVisitor):
         elif isinstance(node.func, ast.Attribute):
             if node.func.attr in ['textinput', 'numinput']:
                  is_input = True
+            elif self.current_function:
+                 self.callees[self.current_function].add(node.func.attr)
 
         if is_input and self.current_function:
              self.calls_input.add(self.current_function)
@@ -2923,6 +2925,8 @@ class AsyncTransformer(ast.NodeTransformer):
                   # We discard the object (screen/turtle) because our helpers are global singletons/proxies
                   func_name = 'async_' + node.func.attr
                   node.func = ast.Name(id=func_name, ctx=ast.Load())
+                  should_await = True
+             elif node.func.attr in self.async_functions:
                   should_await = True
 
         if should_await:
