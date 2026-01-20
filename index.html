@@ -2059,7 +2059,7 @@ def get_docstring(name):
              return <div className="traceback-container">{elements}</div>;
         };
 
-        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave, searchQuery, onInsertAbove, onInsertBelow, onConvertCode, onConvertMarkdown, completionEngine }) => {
+        const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave, searchQuery, onInsertAbove, onInsertBelow, onConvertCode, onConvertMarkdown, completionEngine, pyodide }) => {
             const textareaRef = useRef(null);
             const fileInputRef = useRef(null);
             const [inputValue, setInputValue] = useState("");
@@ -3694,6 +3694,7 @@ stdout_val = sys.stdout.getvalue()
                                         }
                                     }}
                                     completionEngine={completionEngine}
+                                    pyodide={pyodide}
                                 />
                             </div>
                         ))}
