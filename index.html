@@ -2760,14 +2760,10 @@ def get_docstring(name):
 
                 // Handle Magics
                 const trimmed = cellToRun.content.trim();
-                if (trimmed.startsWith('%%html')) {
-                    const htmlContent = trimmed.substring(6); // Remove %%html (keeping whitespace/newlines)
-                    // Or better, remove first line? Colab usually treats the rest as HTML.
-                    // %%html
-                    // <div>...</div>
-                    // But if they write %%html <div>...</div> on same line?
-                    // Let's just remove the magic.
 
+                // 1. %%html Magic
+                if (trimmed.startsWith('%%html')) {
+                    const htmlContent = trimmed.substring(6);
                     updateCell(id, {
                         isRunning: false,
                         output: '',
@@ -2775,6 +2771,34 @@ def get_docstring(name):
                         html: htmlContent
                     });
                     return true;
+                }
+
+                // 2. Pip Install Magic (!pip or %pip)
+                if (trimmed.startsWith('!pip') || trimmed.startsWith('%pip')) {
+                    updateCell(id, { isRunning: true, output: '', error: null, images: [], html: null });
+                    try {
+                        const args = trimmed.split(/\s+/).slice(1); // ['install', 'pandas', 'numpy']
+                        // Simple parser: look for 'install' and then package names
+                        if (args[0] === 'install') {
+                             const packages = args.slice(1).filter(a => !a.startsWith('-')); // Ignore flags for now
+                             if (packages.length > 0) {
+                                 updateCell(id, { output: `Installing ${packages.join(', ')}...\n` });
+                                 await pyodide.loadPackage("micropip");
+                                 const micropip = pyodide.pyimport("micropip");
+                                 await micropip.install(packages);
+                                 updateCell(id, { output: `Successfully installed: ${packages.join(', ')}\n` });
+                             } else {
+                                 updateCell(id, { output: "Usage: !pip install <package_name>\n" });
+                             }
+                        } else {
+                             updateCell(id, { output: "Only 'pip install' is currently supported.\n" });
+                        }
+                        updateCell(id, { isRunning: false });
+                        return true;
+                    } catch (err) {
+                        updateCell(id, { isRunning: false, error: err.toString() });
+                        return false;
+                    }
                 }
 
                 // Reset Turtle Queue
@@ -2824,7 +2848,23 @@ class RealtimeStdout:
     def getvalue(self):
         return self.buffer.getvalue()
 
+class RealtimeStderr:
+    def __init__(self):
+        self.buffer = io.StringIO()
+    def write(self, text):
+        self.buffer.write(text)
+        # We can stream stderr similarly, maybe wrap in a warning style if possible?
+        # For now, stream as regular output but maybe we can prefix or style later.
+        # Just streaming ensures visibility.
+        if hasattr(window, "streamOutput"):
+             window.streamOutput(text)
+    def flush(self):
+        pass
+    def getvalue(self):
+        return self.buffer.getvalue()
+
 sys.stdout = RealtimeStdout()
+sys.stderr = RealtimeStderr()
 
 # Fix: Reset turtle queue to remove any 'create_turtle' events triggered by import side-effects
 if hasattr(window, "resetTurtleQueue"):
@@ -3012,6 +3052,13 @@ if last_result is not None:
         # Note: In JS we checked !== undefined/null, but pyodide might map those.
         # But here last_result is a Python object.
         sys.stdout.write(str(last_result))
+
+# Merge Stderr into Stdout for final display (so it doesn't vanish)
+stderr_val = sys.stderr.getvalue()
+if stderr_val:
+    if sys.stdout.getvalue():
+        sys.stdout.write('\\n')
+    sys.stdout.write(stderr_val)
 
 # Check plots
 if plt.get_fignums():
@@ -3229,6 +3276,13 @@ stdout_val = sys.stdout.getvalue()
                     </button>
                     <div className="border-t border-gray-100 dark:border-gray-800 my-1"></div>
                     <button
+                        onClick={() => { document.getElementById('file-upload-input').click(); setIsMenuOpen(false); }}
+                        className="flex lg:hidden items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
+                    >
+                        <SimpleIcon name="Upload" className="mr-3 h-4 w-4" />
+                        Upload File to Runtime
+                    </button>
+                    <button
                         onClick={() => { backupNotebook(); setIsMenuOpen(false); }}
                         className="flex items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
                     >
@@ -3383,6 +3437,32 @@ stdout_val = sys.stdout.getvalue()
                                 onClick={toggleTheme} 
                                 title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                             />
+                            <button
+                                onClick={() => document.getElementById('file-upload-input').click()}
+                                className="focus:outline-none transition-opacity hover:opacity-80 p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hidden lg:block"
+                                title="Upload File to Runtime"
+                            >
+                                <SimpleIcon name="Upload" className="h-5 w-5" />
+                            </button>
+                            <input
+                                type="file"
+                                id="file-upload-input"
+                                className="hidden"
+                                onChange={async (e) => {
+                                    const file = e.target.files[0];
+                                    if (!file || !pyodide) return;
+                                    try {
+                                        const buffer = await file.arrayBuffer();
+                                        const data = new Uint8Array(buffer);
+                                        pyodide.FS.writeFile(file.name, data);
+                                        showNotification(`Uploaded: ${file.name}`);
+                                        e.target.value = ''; // Reset
+                                    } catch (err) {
+                                        showNotification(`Upload Failed: ${err.message}`);
+                                    }
+                                }}
+                            />
+
                             <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1"></div>
 
                             <button
