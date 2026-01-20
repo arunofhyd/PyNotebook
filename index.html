@@ -596,6 +596,8 @@
             Moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
             Download: <g><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></g>,
             Upload: <g><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></g>,
+            Paperclip: <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />,
+            FileUp: <g><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><path d="M12 12v6" /><path d="M9 15l3-3 3 3" /></g>,
             Menu: <g><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" /></g>,
             LogOut: <g><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></g>,
             Copy: <g><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></g>,
@@ -2059,6 +2061,7 @@ def get_docstring(name):
 
         const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell, focusNextCell, isFocused, setFocusedId, isRuntimeReady, inputRequest, submitInput, triggerSave, searchQuery, onInsertAbove, onInsertBelow, onConvertCode, onConvertMarkdown, completionEngine }) => {
             const textareaRef = useRef(null);
+            const fileInputRef = useRef(null);
             const [inputValue, setInputValue] = useState("");
             const [outputCollapsed, setOutputCollapsed] = useState(false);
             const [showLineNumbers, setShowLineNumbers] = useState(false);
@@ -2106,6 +2109,39 @@ def get_docstring(name):
                         </div>
                         
                         <div className="flex items-center space-x-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                           <Button
+                                variant="ghost"
+                                size="icon"
+                                icon="Paperclip"
+                                title="Import File Content (Replace current)"
+                                onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+                           />
+                           <input
+                                ref={fileInputRef}
+                                type="file"
+                                className="hidden"
+                                accept=".py,.txt,.md,.csv,.json,.js,.html"
+                                onClick={(e) => { e.stopPropagation(); }}
+                                onChange={async (e) => {
+                                    const file = e.target.files[0];
+                                    if (!file) return;
+
+                                    if (cell.content && cell.content.trim().length > 0) {
+                                        if (!window.confirm("Importing a file will replace the current cell content. Continue?")) {
+                                            e.target.value = '';
+                                            return;
+                                        }
+                                    }
+
+                                    try {
+                                        const text = await file.text();
+                                        updateCell(cell.id, { content: text });
+                                        e.target.value = ''; // Reset
+                                    } catch (err) {
+                                        alert("Failed to read file: " + err.message);
+                                    }
+                                }}
+                           />
                            <Button variant="ghost" size="icon" icon="MoveUp" onClick={(e) => { e.stopPropagation(); moveCell(index, -1); }} disabled={index === 0} />
                            <Button variant="ghost" size="icon" icon="MoveDown" onClick={(e) => { e.stopPropagation(); moveCell(index, 1); }} />
                            <Button variant="ghost" size="icon" icon="Trash2" className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300" onClick={(e) => { e.stopPropagation(); removeCell(cell.id); }} />
@@ -3279,7 +3315,7 @@ stdout_val = sys.stdout.getvalue()
                         onClick={() => { document.getElementById('file-upload-input').click(); setIsMenuOpen(false); }}
                         className="flex lg:hidden items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
                     >
-                        <SimpleIcon name="Upload" className="mr-3 h-4 w-4" />
+                        <SimpleIcon name="Paperclip" className="mr-3 h-4 w-4" />
                         Upload File to Runtime
                     </button>
                     <button
@@ -3442,7 +3478,7 @@ stdout_val = sys.stdout.getvalue()
                                 className="focus:outline-none transition-opacity hover:opacity-80 p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hidden lg:block"
                                 title="Upload File to Runtime"
                             >
-                                <SimpleIcon name="Upload" className="h-5 w-5" />
+                                <SimpleIcon name="FileUp" className="h-5 w-5" />
                             </button>
                             <input
                                 type="file"
