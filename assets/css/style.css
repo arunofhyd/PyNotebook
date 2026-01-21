@@ -191,6 +191,7 @@
 
         /* Force vibrant colors in Dark Mode for properties/functions if Monokai misses them */
         .cm-s-monokai .cm-property { color: #f92672 !important; } /* Vibrant Pink */
+        .cm-s-monokai .cm-operator { color: #fd971f !important; } /* Vibrant Orange for operators */
         .cm-s-monokai .cm-variable-2 { color: #a6e22e !important; } /* Greenish for vars/funcs or use Pink if preferred */
         /* Actually Monokai uses #a6e22e (Green) for function names usually, and #66d9ef (Blue) for library/builtins.
            The user wants ".choice" (property) to be unique/colored.
