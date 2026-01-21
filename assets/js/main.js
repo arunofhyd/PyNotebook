@@ -1003,7 +1003,7 @@ stdout_val = sys.stdout.getvalue()
             <div className="border-t border-gray-100 dark:border-gray-800 my-1"></div>
             <button
                 onClick={() => { document.getElementById('file-upload-input').click(); setIsMenuOpen(false); }}
-                className="flex lg:hidden items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
+                className="flex items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
             >
                 <SimpleIcon name="Paperclip" className="mr-3 h-4 w-4" />
                 Upload File to Runtime
@@ -1163,13 +1163,6 @@ stdout_val = sys.stdout.getvalue()
                         onClick={toggleTheme}
                         title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                     />
-                    <button
-                        onClick={() => document.getElementById('file-upload-input').click()}
-                        className="focus:outline-none transition-opacity hover:opacity-80 p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hidden lg:block"
-                        title="Upload File to Runtime"
-                    >
-                        <SimpleIcon name="FileUp" className="h-5 w-5" />
-                    </button>
                     <input
                         type="file"
                         id="file-upload-input"
