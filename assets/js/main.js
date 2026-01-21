@@ -549,10 +549,10 @@ function PyNotebook() {
 import sys
 if '.' not in sys.path: sys.path.insert(0, '.')
 try:
-import pynotebook_turtle
-sys.modules['turtle'] = pynotebook_turtle
+    import pynotebook_turtle
+    sys.modules['turtle'] = pynotebook_turtle
 except:
-pass
+    pass
 
 import io
 import ast
@@ -563,142 +563,142 @@ from js import window
 
 # Real-time Stdout
 class RealtimeStdout:
-def __init__(self):
-    self.buffer = io.StringIO()
-def write(self, text):
-    self.buffer.write(text)
-    if hasattr(window, "streamOutput"):
-            window.streamOutput(text)
-def flush(self):
-    pass
-def getvalue(self):
-    return self.buffer.getvalue()
+    def __init__(self):
+        self.buffer = io.StringIO()
+    def write(self, text):
+        self.buffer.write(text)
+        if hasattr(window, "streamOutput"):
+                window.streamOutput(text)
+    def flush(self):
+        pass
+    def getvalue(self):
+        return self.buffer.getvalue()
 
 class RealtimeStderr:
-def __init__(self):
-    self.buffer = io.StringIO()
-def write(self, text):
-    self.buffer.write(text)
-    # We can stream stderr similarly, maybe wrap in a warning style if possible?
-    # For now, stream as regular output but maybe we can prefix or style later.
-    # Just streaming ensures visibility.
-    if hasattr(window, "streamOutput"):
-            window.streamOutput(text)
-def flush(self):
-    pass
-def getvalue(self):
-    return self.buffer.getvalue()
+    def __init__(self):
+        self.buffer = io.StringIO()
+    def write(self, text):
+        self.buffer.write(text)
+        # We can stream stderr similarly, maybe wrap in a warning style if possible?
+        # For now, stream as regular output but maybe we can prefix or style later.
+        # Just streaming ensures visibility.
+        if hasattr(window, "streamOutput"):
+                window.streamOutput(text)
+    def flush(self):
+        pass
+    def getvalue(self):
+        return self.buffer.getvalue()
 
 sys.stdout = RealtimeStdout()
 sys.stderr = RealtimeStderr()
 
 # Fix: Reset turtle queue to remove any 'create_turtle' events triggered by import side-effects
 if hasattr(window, "resetTurtleQueue"):
-window.resetTurtleQueue()
+    window.resetTurtleQueue()
 
 ${themeSetup}
 
 # Define async input helpers that call JS
 async def async_input(prompt=""):
-return await window.pyNotebookInputHandler("${id}", prompt, None)
+    return await window.pyNotebookInputHandler("${id}", prompt, None)
 
 async def async_textinput(title, prompt):
-return await window.pyNotebookInputHandler("${id}", prompt, title)
+    return await window.pyNotebookInputHandler("${id}", prompt, title)
 
 async def async_numinput(title, prompt, default=None, minval=None, maxval=None):
-val_str = await window.pyNotebookInputHandler("${id}", prompt, title)
-if val_str is None: return None
-try:
-    val = float(val_str)
-    if minval is not None and val < minval: return minval
-    if maxval is not None and val > maxval: return maxval
-    return val
-except:
-    return None
+    val_str = await window.pyNotebookInputHandler("${id}", prompt, title)
+    if val_str is None: return None
+    try:
+        val = float(val_str)
+        if minval is not None and val < minval: return minval
+        if maxval is not None and val > maxval: return maxval
+        return val
+    except:
+        return None
 
 # Advanced AST Transformer to handle async inputs even inside functions
 class CallGraphWalker(ast.NodeVisitor):
-def __init__(self):
-    self.callees = {} # function_name -> set(called_functions)
-    self.calls_input = set() # set of function names that call input/async_input
-    self.current_function = None
+    def __init__(self):
+        self.callees = {} # function_name -> set(called_functions)
+        self.calls_input = set() # set of function names that call input/async_input
+        self.current_function = None
 
-def visit_FunctionDef(self, node):
-    outer = self.current_function
-    self.current_function = node.name
-    self.callees[node.name] = set()
-    self.generic_visit(node)
-    self.current_function = outer
+    def visit_FunctionDef(self, node):
+        outer = self.current_function
+        self.current_function = node.name
+        self.callees[node.name] = set()
+        self.generic_visit(node)
+        self.current_function = outer
 
-def visit_AsyncFunctionDef(self, node):
-    self.visit_FunctionDef(node)
+    def visit_AsyncFunctionDef(self, node):
+        self.visit_FunctionDef(node)
 
-def visit_Call(self, node):
-    # Identify calls to input/textinput/numinput
-    is_input = False
-    if isinstance(node.func, ast.Name):
-        if node.func.id in ['input', 'textinput', 'numinput']:
-            is_input = True
-        elif self.current_function:
-                self.callees[self.current_function].add(node.func.id)
-    elif isinstance(node.func, ast.Attribute):
-        if node.func.attr in ['textinput', 'numinput']:
+    def visit_Call(self, node):
+        # Identify calls to input/textinput/numinput
+        is_input = False
+        if isinstance(node.func, ast.Name):
+            if node.func.id in ['input', 'textinput', 'numinput']:
                 is_input = True
-        elif self.current_function:
-                self.callees[self.current_function].add(node.func.attr)
+            elif self.current_function:
+                    self.callees[self.current_function].add(node.func.id)
+        elif isinstance(node.func, ast.Attribute):
+            if node.func.attr in ['textinput', 'numinput']:
+                    is_input = True
+            elif self.current_function:
+                    self.callees[self.current_function].add(node.func.attr)
 
-    if is_input and self.current_function:
-            self.calls_input.add(self.current_function)
+        if is_input and self.current_function:
+                self.calls_input.add(self.current_function)
 
-    self.generic_visit(node)
+        self.generic_visit(node)
 
 class AsyncTransformer(ast.NodeTransformer):
-def __init__(self, async_functions):
-    self.async_functions = async_functions
+    def __init__(self, async_functions):
+        self.async_functions = async_functions
 
-def visit_FunctionDef(self, node):
-    if node.name in self.async_functions:
-        # Convert to AsyncFunctionDef
-        new_node = ast.AsyncFunctionDef(
-            name=node.name,
-            args=node.args,
-            body=node.body,
-            decorator_list=node.decorator_list,
-            returns=node.returns,
-            type_comment=node.type_comment
-        )
-        self.generic_visit(new_node)
-        return ast.copy_location(new_node, node)
-    return self.generic_visit(node)
+    def visit_FunctionDef(self, node):
+        if node.name in self.async_functions:
+            # Convert to AsyncFunctionDef
+            new_node = ast.AsyncFunctionDef(
+                name=node.name,
+                args=node.args,
+                body=node.body,
+                decorator_list=node.decorator_list,
+                returns=node.returns,
+                type_comment=node.type_comment
+            )
+            self.generic_visit(new_node)
+            return ast.copy_location(new_node, node)
+        return self.generic_visit(node)
 
-def visit_Call(self, node):
-    self.generic_visit(node)
+    def visit_Call(self, node):
+        self.generic_visit(node)
 
-    should_await = False
-    # Check if calling an input function or a now-async user function
-    if isinstance(node.func, ast.Name):
-        if node.func.id == 'input':
-                node.func.id = 'async_input'
-                should_await = True
-        elif node.func.id in ['textinput', 'numinput']:
-                node.func.id = 'async_' + node.func.id
-                should_await = True
-        elif node.func.id in self.async_functions:
-                should_await = True
-    elif isinstance(node.func, ast.Attribute):
-            if node.func.attr in ['textinput', 'numinput']:
-                # Replace method call (e.g. screen.textinput) with global helper call
-                # We discard the object (screen/turtle) because our helpers are global singletons/proxies
-                func_name = 'async_' + node.func.attr
-                node.func = ast.Name(id=func_name, ctx=ast.Load())
-                should_await = True
-            elif node.func.attr in self.async_functions:
-                should_await = True
+        should_await = False
+        # Check if calling an input function or a now-async user function
+        if isinstance(node.func, ast.Name):
+            if node.func.id == 'input':
+                    node.func.id = 'async_input'
+                    should_await = True
+            elif node.func.id in ['textinput', 'numinput']:
+                    node.func.id = 'async_' + node.func.id
+                    should_await = True
+            elif node.func.id in self.async_functions:
+                    should_await = True
+        elif isinstance(node.func, ast.Attribute):
+                if node.func.attr in ['textinput', 'numinput']:
+                    # Replace method call (e.g. screen.textinput) with global helper call
+                    # We discard the object (screen/turtle) because our helpers are global singletons/proxies
+                    func_name = 'async_' + node.func.attr
+                    node.func = ast.Name(id=func_name, ctx=ast.Load())
+                    should_await = True
+                elif node.func.attr in self.async_functions:
+                    should_await = True
 
-    if should_await:
-        return ast.Await(value=node)
+        if should_await:
+            return ast.Await(value=node)
 
-    return node
+        return node
 
 `);
 
@@ -715,31 +715,31 @@ import ast
 source = ${JSON.stringify(cellToRun.content)}
 result = source
 try:
-tree = ast.parse(source)
+    tree = ast.parse(source)
 
-# 1. Build Call Graph
-walker = CallGraphWalker()
-walker.visit(tree)
+    # 1. Build Call Graph
+    walker = CallGraphWalker()
+    walker.visit(tree)
 
-# 2. Propagate Async (Fixed-point iteration)
-changed = True
-async_funcs = set(walker.calls_input)
+    # 2. Propagate Async (Fixed-point iteration)
+    changed = True
+    async_funcs = set(walker.calls_input)
 
-while changed:
-changed = False
-for func, callees in walker.callees.items():
-    if func not in async_funcs:
-        if not async_funcs.isdisjoint(callees):
-            async_funcs.add(func)
-            changed = True
+    while changed:
+        changed = False
+        for func, callees in walker.callees.items():
+            if func not in async_funcs:
+                if not async_funcs.isdisjoint(callees):
+                    async_funcs.add(func)
+                    changed = True
 
-# 3. Transform
-transformer = AsyncTransformer(async_funcs)
-tree = transformer.visit(tree)
-ast.fix_missing_locations(tree)
-result = ast.unparse(tree)
+    # 3. Transform
+    transformer = AsyncTransformer(async_funcs)
+    tree = transformer.visit(tree)
+    ast.fix_missing_locations(tree)
+    result = ast.unparse(tree)
 except Exception as e:
-print(f"Transformation skipped: {e}")
+    print(f"Transformation skipped: {e}")
 result
 `);
 
@@ -765,36 +765,36 @@ images = []
 
 # Check result type for DataFrame or regular value
 if last_result is not None:
-if isinstance(last_result, pd.DataFrame):
-    res_type = "dataframe"
-    html_out = last_result.to_html(classes='min-w-full text-sm text-left border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700')
-else:
-    # Append other results to stdout (mimicking REPL behavior)
-    current_stdout = sys.stdout.getvalue()
-    if current_stdout and not current_stdout.endswith('\\n'):
-        sys.stdout.write('\\n')
+    if isinstance(last_result, pd.DataFrame):
+        res_type = "dataframe"
+        html_out = last_result.to_html(classes='min-w-full text-sm text-left border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700')
+    else:
+        # Append other results to stdout (mimicking REPL behavior)
+        current_stdout = sys.stdout.getvalue()
+        if current_stdout and not current_stdout.endswith('\\n'):
+            sys.stdout.write('\\n')
 
-    # Only print if it's not None (explicit None return)
-    # Note: In JS we checked !== undefined/null, but pyodide might map those.
-    # But here last_result is a Python object.
-    sys.stdout.write(str(last_result))
+        # Only print if it's not None (explicit None return)
+        # Note: In JS we checked !== undefined/null, but pyodide might map those.
+        # But here last_result is a Python object.
+        sys.stdout.write(str(last_result))
 
 # Merge Stderr into Stdout for final display (so it doesn't vanish)
 stderr_val = sys.stderr.getvalue()
 if stderr_val:
-if sys.stdout.getvalue():
-    sys.stdout.write('\\n')
-sys.stdout.write(stderr_val)
+    if sys.stdout.getvalue():
+        sys.stdout.write('\\n')
+    sys.stdout.write(stderr_val)
 
 # Check plots
 if plt.get_fignums():
-for i in plt.get_fignums():
-    plt.figure(i)
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    buf.seek(0)
-    images.append(base64.b64encode(buf.read()).decode('utf-8'))
-plt.close('all')
+    for i in plt.get_fignums():
+        plt.figure(i)
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        images.append(base64.b64encode(buf.read()).decode('utf-8'))
+    plt.close('all')
 
 stdout_val = sys.stdout.getvalue()
 {"stdout": stdout_val, "html": html_out, "images": images}
