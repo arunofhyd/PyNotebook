@@ -79,7 +79,7 @@ const AuthScreen = ({ onLogin, onGuest }) => {
             <div className="w-full max-w-md">
                 <section className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 transition-colors duration-200">
                     <header className="text-center transform transition-all duration-300 mb-8">
-                        <img src="/assets/logo.png" className="w-24 h-24 mb-4 mx-auto rounded-full object-cover transition-all duration-300" alt="PyNotebook Logo" onError={(e) => e.target.style.display='none'} />
+                        <img src="/assets/logo.png" className="logo-glow w-24 h-24 mb-4 mx-auto rounded-full object-cover transition-all duration-300" alt="PyNotebook Logo" onError={(e) => e.target.style.display='none'} />
                         <h1 className="text-4xl sm:text-5xl font-extrabold text-black dark:text-white tracking-tight mb-2 sm:mb-4 break-words transition-colors duration-300 pb-2">PyNotebook</h1>
                         <div className="flex items-center justify-center gap-2 mb-2 sm:mb-4">
                             <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base transition-colors duration-300">Python in your browser.</p>
