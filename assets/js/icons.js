@@ -37,7 +37,8 @@ window.Icons = {
     Keyboard: <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />,
     Eraser: <path d="M20 20H7L3 16C2 15 2 13 3 12L13 2L22 11L18 15" />,
     Mail: <g><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></g>,
-    Database: <g><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></g>
+    Database: <g><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></g>,
+    Cloud: <g><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" /></g>
 };
 
 window.SimpleIcon = ({ name, className }) => {
