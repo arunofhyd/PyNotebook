@@ -161,6 +161,68 @@ function PyNotebook() {
         }
     };
 
+    // --- Hash Logic (Shared Notebooks) ---
+    useEffect(() => {
+        const handleHash = async () => {
+            // Check for Shared Notebook in Hash (Client-side)
+            if (window.location.hash && window.location.hash.startsWith('#share=')) {
+                try {
+                    const raw = window.location.hash.substring(7);
+                    const decompressed = window.LZString.decompressFromEncodedURIComponent(raw);
+                    if (decompressed) {
+                        const cellsData = JSON.parse(decompressed);
+                        if (Array.isArray(cellsData)) {
+                             if (window.confirm("Load shared notebook? This will replace your current workspace.")) {
+                                 setCells(cellsData);
+                                 // Clear hash to indicate it is now a local copy
+                                 window.history.pushState("", document.title, window.location.pathname + window.location.search);
+                             }
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to load shared notebook", e);
+                    showNotification("Failed to load shared link");
+                }
+            }
+            // Check for Cloud Shared Notebook in Hash
+            else if (window.location.hash && window.location.hash.startsWith('#cloud=')) {
+                try {
+                    const docId = window.location.hash.substring(7);
+                    const { db, doc, getDoc } = window.firebaseServices;
+
+                    try {
+                        const snapshot = await getDoc(doc(db, "shared_notebooks", docId));
+                        if (snapshot.exists()) {
+                            const data = snapshot.data();
+                            if (data && data.data) {
+                                // Cloud data is Base64 compressed
+                                const decompressed = window.LZString.decompressFromBase64(data.data);
+                                if (decompressed) {
+                                    const cellsData = JSON.parse(decompressed);
+                                    if (Array.isArray(cellsData)) {
+                                         if (window.confirm("Load cloud-shared notebook? This will replace your current workspace.")) {
+                                             setCells(cellsData);
+                                             window.history.pushState("", document.title, window.location.pathname + window.location.search);
+                                         }
+                                    }
+                                }
+                            }
+                        } else {
+                            showNotification("Shared notebook not found or expired.");
+                        }
+                    } catch(err) {
+                        console.error("Cloud load error:", err);
+                        showNotification("Failed to load cloud notebook.");
+                    }
+                } catch (e) {
+                    console.error("Failed to parse cloud hash", e);
+                }
+            }
+        };
+
+        handleHash();
+    }, []); // Run once on mount
+
     // --- Auth Logic ---
     useEffect(() => {
         if (window.firebaseServices && window.firebaseServices.auth) {
@@ -847,6 +909,82 @@ stdout_val = sys.stdout.getvalue()
             // Visual feedback could be added here
     };
 
+    const handleSmartShare = async () => {
+        const cleanCells = cells.map(c => ({
+            id: c.id,
+            type: c.type,
+            content: c.content,
+            codeCollapsed: c.codeCollapsed || false
+        }));
+
+        const jsonPayload = JSON.stringify(cleanCells);
+
+        // 1. Try Client-Side Link (LZString)
+        // URL Safe Compression
+        const compressedLink = window.LZString ? window.LZString.compressToEncodedURIComponent(jsonPayload) : null;
+
+        if (!compressedLink) {
+            showNotification("Compression failed.");
+            return;
+        }
+
+        // URL Length Threshold
+        // Guests: High limit (20k) to maximize free usage.
+        // Users: Low limit (1k) to prioritize clean/short Cloud links (avoids "ugly" URLs).
+        const LINK_THRESHOLD = user ? 1000 : 20000;
+
+        if (compressedLink.length < LINK_THRESHOLD) {
+            const shareUrl = `${window.location.origin}${window.location.pathname}#share=${compressedLink}`;
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                if (!user && compressedLink.length > 500) {
+                     showNotification("Link copied! Sign in for a shorter link.");
+                } else {
+                     showNotification("Link copied to clipboard!");
+                }
+            } catch (err) {
+                console.error("Failed to copy:", err);
+                showNotification("Failed to copy link.");
+            }
+            return;
+        }
+
+        // 2. Fallback to Cloud Sharing (Firestore)
+        if (!user) {
+            // Guest cannot use cloud fallback (per requirements)
+            showNotification("Notebook too large for link. Please sign in to share.");
+            return;
+        }
+
+        // Use Base64 for storage (more efficient than URI component for storage)
+        const compressedStorage = window.LZString.compressToBase64(jsonPayload);
+
+        // Limit check for cloud (1MB Firestore Limit)
+        if (compressedStorage.length > 950000) {
+            showNotification("Notebook too large even for cloud (max 1MB).");
+            return;
+        }
+
+        try {
+            showNotification("Notebook large. Uploading to cloud...", 4000);
+            const { db, addDoc, collection } = window.firebaseServices;
+
+            const docRef = await addDoc(collection(db, "shared_notebooks"), {
+                data: compressedStorage,
+                createdAt: new Date(),
+                createdBy: user.uid
+            });
+
+            const shareUrl = `${window.location.origin}${window.location.pathname}#cloud=${docRef.id}`;
+            await navigator.clipboard.writeText(shareUrl);
+            showNotification("Cloud link copied to clipboard!");
+
+        } catch (err) {
+            console.error("Failed to share to cloud:", err);
+            showNotification("Upload failed: " + err.message);
+        }
+    };
+
     const backupNotebook = () => {
         const notebookData = {
             metadata: {
@@ -1007,6 +1145,13 @@ stdout_val = sys.stdout.getvalue()
             >
                 <SimpleIcon name="Paperclip" className="mr-3 h-4 w-4" />
                 Upload File to Runtime
+            </button>
+            <button
+                onClick={() => { handleSmartShare(); setIsMenuOpen(false); }}
+                className="flex items-center px-4 py-3 sm:py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 w-full text-left transition-colors"
+            >
+                <SimpleIcon name="Copy" className="mr-3 h-4 w-4" />
+                Share via Link
             </button>
             <button
                 onClick={() => { backupNotebook(); setIsMenuOpen(false); }}
