@@ -928,15 +928,20 @@ stdout_val = sys.stdout.getvalue()
             return;
         }
 
-        // URL Length Threshold (Safe approx 20-30k chars for modern browsers, but safer to be lower for reliability)
-        // Let's use 20,000 as a soft limit.
-        const LINK_THRESHOLD = 20000;
+        // URL Length Threshold
+        // Guests: High limit (20k) to maximize free usage.
+        // Users: Low limit (1k) to prioritize clean/short Cloud links (avoids "ugly" URLs).
+        const LINK_THRESHOLD = user ? 1000 : 20000;
 
         if (compressedLink.length < LINK_THRESHOLD) {
             const shareUrl = `${window.location.origin}${window.location.pathname}#share=${compressedLink}`;
             try {
                 await navigator.clipboard.writeText(shareUrl);
-                showNotification("Link copied to clipboard!");
+                if (!user && compressedLink.length > 500) {
+                     showNotification("Link copied! Sign in for a shorter link.");
+                } else {
+                     showNotification("Link copied to clipboard!");
+                }
             } catch (err) {
                 console.error("Failed to copy:", err);
                 showNotification("Failed to copy link.");
