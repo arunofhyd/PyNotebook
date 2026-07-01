@@ -166,7 +166,7 @@ window.FormattedTraceback = ({ text }) => {
               const parts = displayLine.split("---->");
               elements.push(
                   <div key={idx} className="bg-red-50 dark:bg-red-900/10">
-                      <span className="tb-arrow select-none">----></span>{parts[1]}
+                      <span className="tb-arrow select-none">{"---->"}</span>{parts[1]}
                   </div>
               );
          } else {
