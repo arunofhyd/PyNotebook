@@ -877,6 +877,7 @@ const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell
     const [inputValue, setInputValue] = useState("");
     const [outputCollapsed, setOutputCollapsed] = useState(false);
     const [showLineNumbers, setShowLineNumbers] = useState(false);
+    const [isEditing, setIsEditing] = useState(cell.content.trim() === '');
 
     // Auto-resize for markdown cells
     useEffect(() => {
@@ -1004,38 +1005,54 @@ const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell
             <div className="p-4">
                 {/* Markdown Cell */}
                 {cell.type !== 'code' && (
-                    <textarea
-                        ref={textareaRef}
-                        value={cell.content}
-                        onChange={(e) => updateCell(cell.id, { content: e.target.value })}
-                        onBlur={triggerSave}
-                        onKeyDown={(e) => {
-                            if (e.key.toLowerCase() === 'm' && (e.ctrlKey || e.metaKey)) {
-                                e.preventDefault();
-                                // Command Mode logic for Markdown
-                                const keyHandler = (ev) => {
-                                    ev.preventDefault();
-                                    ev.stopPropagation();
-                                    const key = ev.key.toLowerCase();
-                                    switch(key) {
-                                        case 'a': if (onInsertAbove) onInsertAbove(); break;
-                                        case 'b': if (onInsertBelow) onInsertBelow(); break;
-                                        case 'd': removeCell(cell.id); break;
-                                        case 'k': moveCell(index, -1); break;
-                                        case 'j': moveCell(index, 1); break;
-                                        case 'y': if (onConvertCode) onConvertCode(); break;
-                                        case 'm': if (onConvertMarkdown) onConvertMarkdown(); break;
-                                        default: break;
+                    <div
+                        onDoubleClick={() => setIsEditing(true)}
+                        className="w-full"
+                    >
+                        {isEditing ? (
+                            <textarea
+                                ref={textareaRef}
+                                value={cell.content}
+                                onChange={(e) => updateCell(cell.id, { content: e.target.value })}
+                                onBlur={() => {
+                                    setIsEditing(false);
+                                    triggerSave();
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key.toLowerCase() === 'm' && (e.ctrlKey || e.metaKey)) {
+                                        e.preventDefault();
+                                        // Command Mode logic for Markdown
+                                        const keyHandler = (ev) => {
+                                            ev.preventDefault();
+                                            ev.stopPropagation();
+                                            const key = ev.key.toLowerCase();
+                                            switch(key) {
+                                                case 'a': if (onInsertAbove) onInsertAbove(); break;
+                                                case 'b': if (onInsertBelow) onInsertBelow(); break;
+                                                case 'd': removeCell(cell.id); break;
+                                                case 'k': moveCell(index, -1); break;
+                                                case 'j': moveCell(index, 1); break;
+                                                case 'y': if (onConvertCode) onConvertCode(); break;
+                                                case 'm': if (onConvertMarkdown) onConvertMarkdown(); break;
+                                                default: break;
+                                            }
+                                        };
+                                        document.addEventListener('keydown', keyHandler, { capture: true, once: true });
                                     }
-                                };
-                                document.addEventListener('keydown', keyHandler, { capture: true, once: true });
-                            }
-                        }}
-                        placeholder='# Write markdown notes here...'
-                        className="w-full bg-transparent resize-none focus:outline-none font-sans text-sm leading-relaxed text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600"
-                        spellCheck={false}
-                        rows={1}
-                    />
+                                }}
+                                placeholder='# Write markdown notes here...'
+                                className="w-full bg-transparent resize-none focus:outline-none font-sans text-sm leading-relaxed text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600"
+                                spellCheck={false}
+                                rows={1}
+                                autoFocus
+                            />
+                        ) : (
+                            <div 
+                                className="prose dark:prose-invert max-w-none text-sm cursor-text min-h-[1.5rem]" 
+                                dangerouslySetInnerHTML={{ __html: window.DOMPurify ? window.DOMPurify.sanitize(window.marked ? window.marked.parse(cell.content || '# Empty') : cell.content) : cell.content }} 
+                            />
+                        )}
+                    </div>
                 )}
 
                 {/* Code Cell - Editor Row */}
@@ -1195,7 +1212,7 @@ const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell
                                             id: 'html',
                                             content: (
                                                 <div className="overflow-x-auto bg-white dark:bg-gray-800 p-4 rounded border-l-4 border-green-500 border-t border-r border-b border-gray-200 dark:border-gray-700 pl-4">
-                                                    <div dangerouslySetInnerHTML={{ __html: cell.html }} className="prose dark:prose-invert max-w-none text-sm" />
+                                                    <div dangerouslySetInnerHTML={{ __html: window.DOMPurify ? window.DOMPurify.sanitize(cell.html) : cell.html }} className="prose dark:prose-invert max-w-none text-sm" />
                                                 </div>
                                             ),
                                             copyContent: cell.html,
