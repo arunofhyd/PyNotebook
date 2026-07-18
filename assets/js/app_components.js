@@ -885,7 +885,7 @@ const Cell = ({ cell, index, updateCell, removeCell, moveCell, runCell, stopCell
             textareaRef.current.style.height = 'auto';
             textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
         }
-    }, [cell.content, cell.type]);
+    }, [cell.content, cell.type, isEditing]);
 
     const isInputActive = inputRequest && inputRequest.cellId === cell.id;
     const hasOutput = (cell.output || cell.error || (cell.images && cell.images.length) || cell.html);
